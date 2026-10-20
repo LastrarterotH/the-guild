@@ -3,6 +3,7 @@
 // próxima parecida sube a la clase siguiente.
 
 import type { GremioClass, GremioTask } from '../types'
+import { tr } from './i18n'
 
 /** Por "tipo|clase", las últimas misiones: de quién fueron y si salieron bien. */
 export type Xp = Record<string, Array<{ id: string; ok: boolean }>>
@@ -10,14 +11,14 @@ export type Xp = Record<string, Array<{ id: string; ok: boolean }>>
 const KEEP = 8
 const LADDER: GremioClass[] = ['picaro', 'bardo', 'mago']
 
-const TASK_WORD: Record<GremioTask, string> = {
-  identificar: 'identificar o buscar',
-  investigar: 'investigar o implementar',
-  disenar: 'diseño o análisis profundo',
+const TASK_WORD: Record<GremioTask, () => string> = {
+  identificar: () => tr('identificar o buscar', 'identifying or searching'),
+  investigar: () => tr('investigar o implementar', 'researching or implementing'),
+  disenar: () => tr('diseño o análisis profundo', 'design or deep analysis'),
 }
 
 export function taskWord(task: GremioTask): string {
-  return TASK_WORD[task]
+  return TASK_WORD[task]()
 }
 
 function keyOf(task: GremioTask, cls: GremioClass): string {
@@ -47,7 +48,7 @@ export function promote(xp: Xp, task: GremioTask, cls: GremioClass): { cls: Grem
   if (bad < 2 || bad / list.length < 0.4) return null
   const up = LADDER[at + 1]
   if (!up) return null
-  return { cls: up, why: `fallaron ${bad} de sus últimas ${list.length} misiones de ${TASK_WORD[task]}` }
+  return { cls: up, why: tr(`fallaron ${bad} de sus últimas ${list.length} misiones de ${TASK_WORD[task]()}`, `${bad} of their last ${list.length} quests failed (${TASK_WORD[task]()})`) }
 }
 
 /** Cómo le va a una clase en un tipo de misión, para la ficha. */

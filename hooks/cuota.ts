@@ -2,6 +2,7 @@
 // en cada respuesta, el ritmo de consumo y si alcanza hasta el reinicio.
 
 import type { GremioQuota } from '../types'
+import { tr } from './i18n'
 
 export type Limit = { kind: string; percentUsed: number; resetsAt?: string }
 
@@ -9,15 +10,15 @@ export const EMPTY_QUOTA: GremioQuota = { windows: [], samples: [], sessionFive:
 
 const KEEP = 240
 
-const KIND_LABEL: Record<string, string> = {
-  five_hour: '5 h',
-  seven_day: '7 días',
-  seven_day_opus: '7 días Opus',
-  seven_day_sonnet: '7 días Sonnet',
+const KIND_LABEL: Record<string, () => string> = {
+  five_hour: () => '5 h',
+  seven_day: () => tr('7 días', '7 days'),
+  seven_day_opus: () => tr('7 días Opus', '7 days Opus'),
+  seven_day_sonnet: () => tr('7 días Sonnet', '7 days Sonnet'),
 }
 
 export function kindLabel(kind: string): string {
-  return KIND_LABEL[kind] ?? kind.replace(/_/g, ' ')
+  return KIND_LABEL[kind]?.() ?? kind.replace(/_/g, ' ')
 }
 
 /** Cuánto subió una ventana desde la lectura anterior; si se reinició, cuenta desde cero. */
@@ -75,14 +76,14 @@ export function forecast(q: GremioQuota, now: number): { isEnough: boolean; msTo
 
 /** "4,2%" con coma decimal; "menos de 0,1%" para lo muy chico. */
 export function pctText(n: number): string {
-  if (n > 0 && n < 0.05) return 'menos de 0,1%'
-  return `${n.toFixed(1).replace('.', ',').replace(/,0$/, '')}%`
+  if (n > 0 && n < 0.05) return tr('menos de 0,1%', 'less than 0.1%')
+  return tr(`${n.toFixed(1).replace('.', ',').replace(/,0$/, '')}%`, `${n.toFixed(1).replace(/\.0$/, '')}%`)
 }
 
 /** Monedas con un decimal: "3,8"; "menos de 0,1" para lo muy chico. 1 moneda = 1% de la cuota. */
 export function coinText(n: number): string {
-  if (n > 0 && n < 0.05) return 'menos de 0,1'
-  return n.toFixed(1).replace('.', ',').replace(/,0$/, '')
+  if (n > 0 && n < 0.05) return tr('menos de 0,1', 'less than 0.1')
+  return tr(n.toFixed(1).replace('.', ',').replace(/,0$/, ''), n.toFixed(1).replace(/\.0$/, ''))
 }
 
 /** "2 h 10 min", "45 min", "3 d 4 h". */

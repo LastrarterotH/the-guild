@@ -4,6 +4,7 @@
 // terminal no deje rayas.
 
 import type { GremioClass } from '../types'
+import { tr } from './i18n'
 
 export type Pose = 'quieto' | 'marcha' | 'parpadeo' | 'caido' | 'cansado' | 'durmiendo'
 export type Size = 'big' | 'small' | 'mini'
@@ -173,28 +174,58 @@ export const CLASS_COLOR: Record<GremioClass, string> = {
 }
 
 export const CLASS_LABEL: Record<GremioClass, string> = {
-  maestro: 'Gran Maestre',
-  archimago: 'Archimago',
-  mago: 'Mago',
-  bardo: 'Bardo',
-  picaro: 'Pícaro',
+  get maestro() {
+    return tr('Gran Maestre', 'Grand Master')
+  },
+  get archimago() {
+    return tr('Archimago', 'Archmage')
+  },
+  get mago() {
+    return tr('Mago', 'Mage')
+  },
+  get bardo() {
+    return tr('Bardo', 'Bard')
+  },
+  get picaro() {
+    return tr('Pícaro', 'Rogue')
+  },
 }
 
 export const CLASS_PLURAL: Record<GremioClass, string> = {
-  maestro: 'Grandes Maestres',
-  archimago: 'Archimagos',
-  mago: 'Magos',
-  bardo: 'Bardos',
-  picaro: 'Pícaros',
+  get maestro() {
+    return tr('Grandes Maestres', 'Grand Masters')
+  },
+  get archimago() {
+    return tr('Archimagos', 'Archmages')
+  },
+  get mago() {
+    return tr('Magos', 'Mages')
+  },
+  get bardo() {
+    return tr('Bardos', 'Bards')
+  },
+  get picaro() {
+    return tr('Pícaros', 'Rogues')
+  },
 }
 
 /** Nivel de D&D de cada clase, para la ficha. */
 export const CLASS_LEVEL: Record<GremioClass, string> = {
-  maestro: 'DM',
-  archimago: 'Nv. 20',
-  mago: 'Nv. 15',
-  bardo: 'Nv. 10',
-  picaro: 'Nv. 5',
+  get maestro() {
+    return tr('DM', 'DM')
+  },
+  get archimago() {
+    return tr('Nv. 20', 'Lv. 20')
+  },
+  get mago() {
+    return tr('Nv. 15', 'Lv. 15')
+  },
+  get bardo() {
+    return tr('Nv. 10', 'Lv. 10')
+  },
+  get picaro() {
+    return tr('Nv. 5', 'Lv. 5')
+  },
 }
 
 export const CELLS: Record<Size, { columns: number; rows: number }> = {

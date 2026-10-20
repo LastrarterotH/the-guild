@@ -6,6 +6,8 @@ import { absorbQuota, addProjectSpend, projectShares } from '../hooks/libro'
 import { coinsOf, firstUserTexts, lastTitle } from '../hooks/reino'
 import { classOf, describeTool, firstSentence, modelName } from '../hooks/describe'
 import { plan } from '../hooks/doctrine'
+import { langChoice, langFrom } from '../hooks/i18n'
+import { OLD_STORE, pickImport } from '../hooks/migrar'
 import { CELLS, spriteCells, spriteGrid } from '../hooks/sprites'
 
 const PANE = {
@@ -838,6 +840,8 @@ test('a medianoche todos se van a casa y la numeración vuelve a 1', async ($, o
 /** Lo mínimo para arrancar una sesión de gremio en una prueba. */
 function startMocks(on: On, id: string) {
   on('command.register', () => ({ value: undefined }) as never)
+  // Claude Code en español, como lo tiene quien escribió estas pruebas.
+  on('config.list', () => ({ value: [{ key: 'language', label: 'Language', kind: 'text', value: 'Español', provider: { plugin: 'engine', tier: 'core' }, isLocked: false }] }) as never)
   on('session.usage', () => ({ value: { startedAt: T0, context: { window: 1_000_000, tokens: 320_000, percent: 32 }, rateLimits: [] } }) as never)
   on('ui.open', () => ({ value: { isPlaced: true } }) as never)
   on('session.start', (_, e) => e as never)
@@ -1149,4 +1153,27 @@ test('lo que suena se ve: la pestaña se marca, macOS avisa y las demás sesione
   const osa = runs.filter(r => r[0] === 'osascript').map(r => String(r[2]))
   expect(osa.some(t => t.includes('if (custom title of t) ends with "Bitácora" then') && t.includes('set custom title of t to "🔔 Bitácora"'))).toBe(true)
   expect(osa.some(t => t === 'display notification "Clawd terminó" with title "Gremio · Bitácora"')).toBe(true)
+})
+
+test('el idioma sigue a Claude Code, luego al sistema y si no, inglés', async () => {
+  expect(langFrom('Español')).toBe('es')
+  expect(langFrom('spanish')).toBe('es')
+  expect(langFrom('English')).toBe('en')
+  expect(langFrom('Français', ['es_CL.UTF-8'])).toBe('en')
+  expect(langFrom('', ['C.UTF-8', 'es_CL.UTF-8'])).toBe('es')
+  expect(langFrom(null, ['en_US.UTF-8'])).toBe('en')
+  expect(langFrom(undefined, [undefined, 'POSIX'])).toBe('en')
+  expect(langChoice('ES')).toBe('es')
+  expect(langChoice('inglés')).toBe('en')
+  expect(langChoice('auto')).toBe('auto')
+  expect(langChoice('klingon')).toBeNull()
+})
+
+test('al cambiar de nombre se trae la historia del almacén viejo, sin los latidos del reino', async () => {
+  const chico = { libro: { missions: 2 }, ajustes: { sound: true } }
+  const grande = { libro: { missions: 40 }, experiencia: { 'identificar|picaro': [] }, 'reino.x': { key: 'x' }, ajustes: { sound: false } }
+  expect(pickImport([chico, grande, null, 'basura'])).toEqual({ libro: { missions: 40 }, experiencia: { 'identificar|picaro': [] }, ajustes: { sound: false } })
+  expect(pickImport([])).toEqual({})
+  expect(OLD_STORE.test('gremio_inline-0900d49006a7.json')).toBe(true)
+  expect(OLD_STORE.test('guild_inline-1.json')).toBe(false)
 })

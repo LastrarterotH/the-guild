@@ -3,6 +3,7 @@
 // de las demás; uno sin latir hace más de 3 minutos se da por cerrado.
 
 import type { GremioRealmEntry, GremioRealmState } from '../types'
+import { tr } from './i18n'
 
 /** Un latido más viejo que esto ya no cuenta (la sesión se cerró o se colgó). */
 export const REALM_FRESH_MS = 3 * 60_000
@@ -33,18 +34,20 @@ export function stateOf(s: {
 
 function minutes(ms: number): string {
   const m = Math.max(0, Math.round(ms / 60_000))
-  if (m < 1) return 'recién'
-  if (m < 60) return `hace ${m} min`
-  return `hace ${Math.floor(m / 60)} h`
+  if (m < 1) return tr('recién', 'just now')
+  if (m < 60) return tr(`hace ${m} min`, `${m} min ago`)
+  return tr(`hace ${Math.floor(m / 60)} h`, `${Math.floor(m / 60)} h ago`)
 }
 
 /** «te pide algo · hace 2 min», «trabajando · 2 en misión», «terminó hace 12 min», «tranquila». */
 export function realmWord(e: GremioRealmEntry, now: number): string {
-  if (e.state === 'asking') return `te pide algo · ${minutes(now - e.since)}`
-  if (e.state === 'napping') return `durmiendo la siesta · ${minutes(now - e.since)}`
-  if (e.state === 'working') return e.running > 0 ? `trabajando · ${e.running} en misión` : 'trabajando'
-  if (e.state === 'ready') return `terminó ${minutes(now - e.since)}`
-  return 'tranquila'
+  if (e.state === 'asking') return tr(`te pide algo · ${minutes(now - e.since)}`, `needs you · ${minutes(now - e.since)}`)
+  if (e.state === 'napping') return tr(`durmiendo la siesta · ${minutes(now - e.since)}`, `taking a nap · ${minutes(now - e.since)}`)
+  if (e.state === 'working') return e.running > 0
+      ? tr(`trabajando · ${e.running} en misión`, `working · ${e.running} on quests`)
+      : tr('trabajando', 'working')
+  if (e.state === 'ready') return tr(`terminó ${minutes(now - e.since)}`, `finished ${minutes(now - e.since)}`)
+  return tr('tranquila', 'quiet')
 }
 
 /** Las otras sesiones vigentes, en el orden en que te necesitan. */
@@ -68,7 +71,7 @@ export function labelFromPrompt(text: string): string {
     .split(/\s+/)
     .filter(w => w.length > 2)
     .slice(0, 3)
-  const name = words.join(' ') || 'sesión'
+  const name = words.join(' ') || tr('sesión', 'session')
   return name.charAt(0).toUpperCase() + name.slice(1, 24)
 }
 
@@ -133,7 +136,7 @@ export function coinsOf(
 /** «ahora», «3 min», «2 h»: cuánto lleva en su estado. */
 export function shortSince(ms: number): string {
   const m = Math.max(0, Math.round(ms / 60_000))
-  if (m < 1) return 'ahora'
+  if (m < 1) return tr('ahora', 'now')
   if (m < 60) return `${m} min`
   return `${Math.floor(m / 60)} h`
 }
@@ -155,7 +158,7 @@ export function realmRow(e: GremioRealmEntry, now: number, isOwn: boolean): stri
 export function realmDetail(e: GremioRealmEntry, home: string | null): string[] {
   const lines: string[] = []
   if (e.ask) lines.push(e.ask)
-  else if (e.last) lines.push(`lo último: ${e.last}`)
+  else if (e.last) lines.push(tr(`lo último: ${e.last}`, `last: ${e.last}`))
   if (e.folder) lines.push(`📁 ${home && e.folder.startsWith(home) ? `~${e.folder.slice(home.length)}` : e.folder}`)
   return lines
 }

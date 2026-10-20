@@ -3,6 +3,7 @@
 // comparar clases y ver cuánto ahorra el Código.
 
 import type { GremioUsage } from '../types'
+import { tr } from './i18n'
 
 /** Precio en dólares por millón de tokens. */
 type Price = { input: number; output: number; cacheRead: number; cacheWrite: number }
@@ -62,7 +63,8 @@ export function totalTokens(u: GremioUsage): number {
 /** "US$0,042", con coma decimal. */
 export function usd(n: number): string {
   const abs = Math.abs(n)
-  if (abs > 0 && abs < 0.001) return 'menos de US$0,001'
-  const text = abs.toFixed(abs < 1 ? 3 : 2).replace('.', ',')
+  if (abs > 0 && abs < 0.001) return tr('menos de US$0,001', 'less than US$0.001')
+  const fixed = abs.toFixed(abs < 1 ? 3 : 2)
+  const text = tr(fixed.replace('.', ','), fixed)
   return `US$${text}`
 }
