@@ -1,12 +1,13 @@
 import type { On } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
+import type { Engine } from 'claude-code/testing'
 
 import { epithet } from '../hooks/apodos'
 import { absorbQuota, addProjectSpend, projectShares } from '../hooks/libro'
 import { coinsOf, firstUserTexts, lastTitle } from '../hooks/reino'
 import { classOf, describeTool, firstSentence, modelName } from '../hooks/describe'
 import { plan } from '../hooks/doctrine'
-import { langChoice, langFrom } from '../hooks/i18n'
+import { langChoice, langFrom, setLang } from '../hooks/i18n'
 import { OLD_STORE, pickImport } from '../hooks/migrar'
 import { CELLS, spriteCells, spriteGrid } from '../hooks/sprites'
 
@@ -600,6 +601,7 @@ test('el panel se dibuja a 40, 60 y 110 columnas sin que las líneas fijas se sa
 test('lo que apagaste se recuerda en la sesión siguiente y la línea de estado lo dice', async ($, on) => {
   mock.clock(on, { now: T0 })
   mock.store(on, { ajustes: { sound: false, doctrine: false } })
+  claudeIn(on, 'Español')
   const shown: Array<string | undefined> = []
   on('ui.status', (_, e) => {
     shown.push(e.text)
@@ -838,10 +840,14 @@ test('a medianoche todos se van a casa y la numeración vuelve a 1', async ($, o
 })
 
 /** Lo mínimo para arrancar una sesión de gremio en una prueba. */
+/** Claude Code con su ajuste de idioma (Language) en `value`. */
+function claudeIn(on: On, value: string) {
+  on('config.list', () => ({ value: [{ key: 'language', label: 'Language', kind: 'text', value, provider: { plugin: 'engine', tier: 'core' }, isLocked: false }] }) as never)
+}
+
 function startMocks(on: On, id: string) {
   on('command.register', () => ({ value: undefined }) as never)
-  // Claude Code en español, como lo tiene quien escribió estas pruebas.
-  on('config.list', () => ({ value: [{ key: 'language', label: 'Language', kind: 'text', value: 'Español', provider: { plugin: 'engine', tier: 'core' }, isLocked: false }] }) as never)
+  claudeIn(on, 'Español')
   on('session.usage', () => ({ value: { startedAt: T0, context: { window: 1_000_000, tokens: 320_000, percent: 32 }, rateLimits: [] } }) as never)
   on('ui.open', () => ({ value: { isPlaced: true } }) as never)
   on('session.start', (_, e) => e as never)
@@ -1176,4 +1182,114 @@ test('al cambiar de nombre se trae la historia del almacén viejo, sin los latid
   expect(pickImport([])).toEqual({})
   expect(OLD_STORE.test('gremio_inline-0900d49006a7.json')).toBe(true)
   expect(OLD_STORE.test('guild_inline-1.json')).toBe(false)
+})
+
+/** Un almacén en memoria que la prueba puede mirar. */
+function memoryStore(on: On, initial: Record<string, unknown> = {}): Map<string, unknown> {
+  const data = new Map<string, unknown>(Object.entries(initial))
+  on('store.get', (_, e) => ({ value: data.get(e.key) }) as never)
+  on('store.set', (_, e) => {
+    data.set(e.key, JSON.parse(JSON.stringify(e.value)))
+    return { value: undefined } as never
+  })
+  on('store.delete', (_, e) => {
+    data.delete(e.key)
+    return { value: undefined } as never
+  })
+  on('store.keys', () => ({ value: [...data.keys()] }) as never)
+  return data
+}
+
+/** Arranca una sesión con Claude Code en `language` y anota los comandos que registra. */
+async function startIn($: Engine, on: On, language: string): Promise<string[]> {
+  const registered: string[] = []
+  on('command.register', (_, e) => {
+    registered.push((e as unknown as { name: string }).name)
+    return { value: undefined } as never
+  })
+  claudeIn(on, language)
+  on('session.usage', () => ({ value: { startedAt: T0, context: { window: 1_000_000, tokens: 320_000, percent: 32 }, rateLimits: [] } }) as never)
+  on('ui.open', () => ({ value: { isPlaced: true } }) as never)
+  on('session.start', (_, e) => e as never)
+  on('session.id', () => ({ value: 'propia' }) as never)
+  on('session.measure', (_, e) => ({ changed: e.changed }))
+  await $.session.start({ cwd: '/Users/ana/Code/recetario', surface: 'terminal', isInteractive: true } as never)
+  return registered
+}
+
+const textOf = (r: unknown) => (typeof r === 'object' && r !== null && 'text' in r ? String((r as { text: unknown }).text) : '')
+
+test('en inglés: con Claude Code en English el gremio habla inglés', async ($, on) => {
+  try {
+    mock.clock(on, { now: T0 })
+    mock.env(on, { HOME: '/Users/ana' })
+    memoryStore(on)
+    on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: 'e1' }))
+    on('prompt.compose', () => ({ sections: [{ id: 'intro', text: 'hi', scope: 'shared' }] }))
+    on('ui.status', () => ({ value: undefined }))
+    const registered = await startIn($, on, 'English')
+    // Solo «/guild»: «/gremio» se ofrece a quien habla español.
+    expect(registered).toEqual(['guild'])
+    // Una misión en inglés también va a un Pícaro (palabras clave en inglés).
+    await $.agent.spawn({ ...SPAWN, description: 'find the logo', prompt: 'Find where the logo is defined and tell me the path.', model: undefined } as never)
+    const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
+    expect((await ui.find({ key: 'sel-e1' }))?.text).toContain('Rogue 1')
+    expect(await ui.find({ type: 'Text', text: /sent Rogue 1, the / })).toBeDefined()
+    await ui.press({ key: 'sel-e1' })
+    await ui.press({ key: 'mas' })
+    expect(await ui.find({ type: 'Text', text: /^Lv\. 5/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Effort: low · Permissions: read-only/ })).toBeDefined()
+    await ui.unmount()
+    // El Código que lee el modelo, también en inglés.
+    const p = await $.prompt.compose({ model: 'claude-opus-5-5', promptModel: 'claude-opus-5-5', surfaces: ['terminal'], tools: [], outputStyle: null, traits: [] })
+    expect(p.sections.find(s => s.id === 'guild:code')?.text).toContain('# Guild Code')
+    const r = await $.command.run({ command: 'guild', args: 'accounts', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } })
+    expect(textOf(r)).toContain('**💰 Guild treasury**')
+  } finally {
+    setLang('es')
+  }
+})
+
+test('/guild language cambia el idioma, lo recuerda y «auto» vuelve a seguir a Claude Code', async ($, on) => {
+  try {
+    mock.clock(on, { now: T0 })
+    mock.env(on, { HOME: '/Users/ana' })
+    const store = memoryStore(on)
+    const registered = await startIn($, on, 'Español')
+    expect(registered).toEqual(['guild', 'gremio'])
+    const run = (args: string) => $.command.run({ command: 'gremio', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } })
+    expect(textOf(await run('language en'))).toBe('The guild now speaks English.')
+    expect(store.get('ajustes')).toMatchObject({ language: 'en' })
+    expect(textOf(await run('cuentas'))).toContain('**💰 Guild treasury**')
+    expect(textOf(await run('idioma es'))).toBe('El gremio ahora habla español.')
+    expect(textOf(await run('language auto'))).toBe('El gremio vuelve a seguir el idioma de Claude Code.')
+    expect(store.get('ajustes') as Record<string, unknown>).not.toHaveProperty('language')
+    expect(textOf(await run('idioma klingon'))).toContain('/guild idioma es')
+  } finally {
+    setLang('es')
+  }
+})
+
+test('la primera vez como guild trae el libro y los ajustes del almacén de gremio, una sola vez', async ($, on) => {
+  mock.clock(on, { now: T0 })
+  mock.env(on, { HOME: '/Users/ana' })
+  const store = memoryStore(on)
+  const runs: string[][] = []
+  on('process.run', (_, e) => {
+    runs.push([...e.argv])
+    const old = { libro: { missions: 7, good: 6, bad: 1, cost: 1, saved: 0, masterCost: 2, codeCost: 0, byClass: {}, fivePoints: 0, weekPoints: 0 }, ajustes: { sound: false, doctrine: true }, 'reino.x': { key: 'x' } }
+    const stdout = e.argv[0] === 'find' ? '/Users/ana/.claude/plugins/store/gremio_inline-1.json\n' : e.argv[0] === 'cat' ? JSON.stringify(old) : ''
+    return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+  })
+  startMocks(on, 'propia')
+  await $.session.start({ cwd: '/Users/ana/Code/recetario', surface: 'terminal', isInteractive: true } as never)
+  expect(runs.find(r => r[0] === 'find')?.[1]).toBe('/Users/ana/.claude/plugins/store')
+  expect(store.get('libro')).toMatchObject({ missions: 7 })
+  expect(store.get('ajustes')).toMatchObject({ sound: false })
+  expect(store.get('reino.x')).toBeUndefined()
+  expect(store.get('migrado')).toBe(true)
+  // La segunda sesión ya no busca.
+  const finds = runs.filter(r => r[0] === 'find' && r[1]?.endsWith('/plugins/store')).length
+  await $.session.start({ cwd: '/Users/ana/Code/recetario', surface: 'terminal', isInteractive: true } as never)
+  expect(runs.filter(r => r[0] === 'find' && r[1]?.endsWith('/plugins/store')).length).toBe(finds)
 })

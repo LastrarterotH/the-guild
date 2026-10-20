@@ -1,6 +1,6 @@
 {
   "name": "guild",
-  "version": "0.20.0",
+  "version": "0.21.0",
   "description": "The Guild: Clawd is the Grand Master and every agent is an adventurer (Rogue, Bard, Mage, Archmage) in a live pixel-art panel, with sounds and a Guild Code that picks each agent's model and effort. Speaks English and Spanish.",
   "types": "./types/index.d.ts"
 }

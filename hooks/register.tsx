@@ -47,13 +47,15 @@ import {
   stateOf,
 } from './reino'
 import { ago, classOf, cut, describeTool, duration, firstSentence, modelName, tokens } from './describe'
-import { aliasOf, brief, classOfAlias, DOCTRINE, effortFor, isFable, plan, planFor, raise, setsLength } from './doctrine'
+import { aliasOf, brief, classOfAlias, doctrineText, effortFor, isFable, plan, planFor, raise, setsLength } from './doctrine'
 import { CLASSIFIER_SYSTEM, classifierPrompt, flip, parseVerdict, promote, record, taskWord } from './experiencia'
 import type { Xp } from './experiencia'
 import { addUsage, costOf, totalTokens, usageFrom } from './oro'
 import { CELLS, CLASS_COLOR, CLASS_LABEL, CLASS_LEVEL, CLASS_PLURAL, spriteCells } from './sprites'
 import type { Pose, Size } from './sprites'
-import { tr } from './i18n'
+import { lang, langChoice, langFrom, setLang, tr } from './i18n'
+import type { Lang } from './i18n'
+import { OLD_STORE, pickImport } from './migrar'
 
 const PANE = 'guild'
 // El pergamino: el botín completo en un panel aparte.
@@ -553,12 +555,17 @@ async function resumable($: EngineInterface): Promise<{ block: string; sig: stri
   return { block, sig: fresh.map(u => u.id).join(',') }
 }
 
-// Lo que apagaste (sonido, Código) se recuerda entre sesiones.
-type Settings = { sound: boolean; doctrine: boolean }
+// Lo que apagaste (sonido, Código) y el idioma que elegiste se recuerdan entre sesiones.
+type Settings = { sound: boolean; doctrine: boolean; language?: Lang }
+
+async function savedSettings($: EngineInterface): Promise<Partial<Settings>> {
+  const saved = await $.store.get('ajustes')
+  return typeof saved === 'object' && saved !== null ? (saved as Partial<Settings>) : {}
+}
 
 async function saveSettings($: EngineInterface): Promise<void> {
   try {
-    const next: Settings = { sound: await read($, sound), doctrine: await read($, doctrine) }
+    const next: Settings = { ...(await savedSettings($)), sound: await read($, sound), doctrine: await read($, doctrine) }
     await $.store.set('ajustes', next)
   } catch {
     // No se pudo guardar; vale para esta sesión.
@@ -572,6 +579,68 @@ async function loadSettings($: EngineInterface): Promise<void> {
     if (typeof saved?.doctrine === 'boolean') await update($, doctrine, () => saved.doctrine as boolean)
   } catch {
     // Sin ajustes guardados todavía.
+  }
+}
+
+/** El idioma de la sesión: el que elegiste con `/guild language`, o el de Claude Code, o el del sistema. */
+async function pickLanguage($: EngineInterface): Promise<void> {
+  try {
+    const chosen = (await savedSettings($)).language
+    if (chosen === 'es' || chosen === 'en') {
+      setLang(chosen)
+      return
+    }
+    const rows = await $.config.list().catch(() => [])
+    const value = rows.find(r => r.key === 'language')?.value
+    const locales = await Promise.all([
+      $.env.get('LC_ALL').catch(() => undefined),
+      $.env.get('LC_MESSAGES').catch(() => undefined),
+      $.env.get('LANG').catch(() => undefined),
+    ])
+    setLang(langFrom(typeof value === 'string' ? value : null, locales))
+  } catch {
+    // Queda el idioma que había.
+  }
+}
+
+/** Guarda el idioma elegido; null vuelve a seguir a Claude Code. */
+async function saveLanguage($: EngineInterface, choice: Lang | null): Promise<void> {
+  try {
+    const { language: _old, ...rest } = await savedSettings($)
+    await $.store.set('ajustes', choice ? { ...rest, language: choice } : rest)
+  } catch {
+    // Vale para esta sesión.
+  }
+}
+
+/**
+ * El plugin se llamaba «gremio»: la primera vez que corre como «guild» trae del
+ * almacén viejo el libro, la experiencia y los ajustes (una sola vez).
+ */
+async function importOldStore($: EngineInterface): Promise<void> {
+  try {
+    if (await $.store.get('migrado')) return
+    if (!(await $.store.keys()).includes('libro')) {
+      const home = (await $.env.get('HOME')) ?? ''
+      const config = (await $.env.get('CLAUDE_CONFIG_DIR')) || `${home}/.claude`
+      const found = await $.process.run(['find', `${config}/plugins/store`, '-maxdepth', '1', '-name', 'gremio_*.json'], { timeoutMs: 5000 })
+      const files = found.stdout
+        .split('\n')
+        .map(f => f.trim())
+        .filter(f => OLD_STORE.test(f.split('/').pop() ?? ''))
+      const stores = await Promise.all(
+        files.map(f =>
+          $.process
+            .run(['cat', f], { timeoutMs: 5000 })
+            .then(r => JSON.parse(r.stdout) as unknown)
+            .catch(() => null),
+        ),
+      )
+      for (const [key, value] of Object.entries(pickImport(stores))) await $.store.set(key, value as never)
+    }
+    await $.store.set('migrado', true)
+  } catch {
+    // Sin historia vieja que traer.
   }
 }
 
@@ -765,7 +834,7 @@ async function absorbContext($: EngineInterface, c: { window: number; tokens?: n
     $.ui.toast(
       tr(
         `💤 A Clawd le queda poca vida (${Math.round(life)} %): un /compact lo deja como nuevo.`,
-        `💤 Clawd is low on HP (${Math.round(life)} %): a /compact makes him good as new.`,
+        `💤 Clawd is low on HP (${Math.round(life)} %): a /compact leaves Clawd good as new.`,
       ),
     )
     await note($, tr(`💤 A Clawd le queda poca vida (${Math.round(life)} %)`, `💤 Clawd is low on HP (${Math.round(life)} %)`))
@@ -882,11 +951,18 @@ async function askFable($: EngineInterface, e: AgentSpawnInput): Promise<'yes' |
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    await $.command.register({
-      name: 'gremio',
-      description:
-        'Abre el Gremio de Clawd: el Gran Maestre y sus aventureros en vivo ("sonidos" los toca todos, "cuentas" muestra la cuota del plan)',
-    })
+    await importOldStore($)
+    await pickLanguage($)
+    // «/guild» para todos; «/gremio» también, para quien habla español.
+    for (const name of lang() === 'es' ? ['guild', 'gremio'] : ['guild']) {
+      await $.command.register({
+        name,
+        description: tr(
+          'Abre el Gremio de Clawd: el Gran Maestre y sus aventureros en vivo ("sonidos" los toca todos, "cuentas" muestra la cuota del plan, "idioma en" lo pasa a inglés)',
+          'Opens Clawd\'s Guild: the Grand Master and their adventurers live ("sounds" plays them all, "accounts" shows the plan quota, "language es" switches to Spanish)',
+        ),
+      })
+    }
     $.clock.every(400, () => tick($))
     try {
       const saved = asBook(await $.store.get('libro'))
@@ -958,8 +1034,8 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('command.run', { command: 'gremio' }, async ($, e) => {
-    const rename = /^\s*nombre\s+(.+)$/i.exec(e.args)
+  for (const command of ['guild', 'gremio'] as const) on('command.run', { command }, async ($, e) => {
+    const rename = /^\s*(?:nombre|name)\s+(.+)$/i.exec(e.args)
     if (rename) {
       const name = rename[1]?.trim().slice(0, 32) ?? ''
       await update($, label, () => name)
@@ -967,11 +1043,35 @@ export const register: Register = on => {
       await beat($, true)
       return { text: tr(`En el reino, esta sesión se llama «${name}».`, `In the realm, this session is called "${name}".`) }
     }
+    const language = /^\s*(?:idioma|language|lang)\b\s*(.*)$/i.exec(e.args)
+    if (language) {
+      const choice = langChoice(language[1] ?? '')
+      if (!choice) {
+        return {
+          text: tr(
+            'Idiomas: `/guild idioma es`, `/guild idioma en` o `/guild idioma auto` (sigue a Claude Code).',
+            'Languages: `/guild language en`, `/guild language es` or `/guild language auto` (follows Claude Code).',
+          ),
+        }
+      }
+      await saveLanguage($, choice === 'auto' ? null : choice)
+      await pickLanguage($)
+      await update($, master, m => (isIdle(m.doing) ? { ...m, doing: idle() } : m))
+      $.ui.invalidate('prompt.section')
+      $.ui.invalidate('ui.render')
+      await refreshStatus($)
+      return {
+        text:
+          choice === 'auto'
+            ? tr('El gremio vuelve a seguir el idioma de Claude Code.', "The guild follows Claude Code's language again.")
+            : tr('El gremio ahora habla español.', 'The guild now speaks English.'),
+      }
+    }
     if (/cerrar|close/i.test(e.args)) {
       await $.ui.close({ id: PANE })
       return { text: tr('Gremio cerrado.', 'Guild closed.') }
     }
-    if (/sonido/i.test(e.args)) {
+    if (/sonido|sound/i.test(e.args)) {
       SOUNDS.forEach((name, i) => {
         $.clock.after(i * 2600, () => play($, name))
       })
@@ -982,7 +1082,7 @@ export const register: Register = on => {
         ),
       }
     }
-    if (/cuenta|cuota|oro|libro/i.test(e.args)) {
+    if (/cuenta|cuota|oro|libro|account|quota|gold|ledger/i.test(e.args)) {
       const t = await read($, treasury)
       const q = await read($, quota)
       const b = asBook(await $.store.get('libro'))
@@ -1459,7 +1559,7 @@ export const register: Register = on => {
     const composed = await next(e)
     try {
       if (await read($, doctrine)) {
-        return { sections: [...composed.sections, { id: 'guild:code', text: DOCTRINE, scope: 'session' as const }] }
+        return { sections: [...composed.sections, { id: 'guild:code', text: doctrineText(), scope: 'session' as const }] }
       }
     } catch {
       // Sin Código, el prompt queda como estaba.
@@ -1640,9 +1740,9 @@ export const register: Register = on => {
           before !== null && after !== null
             ? tr(
                 `🌅 Clawd despertó de su siesta: la vida pasó de ${Math.round(before)} % a ${Math.round(after)} %`,
-                `🌅 Clawd woke up from his nap: HP went from ${Math.round(before)} % to ${Math.round(after)} %`,
+                `🌅 Clawd woke up from a nap: HP went from ${Math.round(before)} % to ${Math.round(after)} %`,
               )
-            : tr('🌅 Clawd despertó de su siesta: la conversación quedó resumida', '🌅 Clawd woke up from his nap: the conversation was summarized'),
+            : tr('🌅 Clawd despertó de su siesta: la conversación quedó resumida', '🌅 Clawd woke up from a nap: the conversation was summarized'),
         )
         await beat($, true)
       } catch {
@@ -1922,7 +2022,7 @@ export const register: Register = on => {
           <Text dimColor>
             Clawd · {dm.model ? modelName(dm.model) : tr('sesión principal', 'main session')}
           </Text>
-          <Text>«{says}»</Text>
+          <Text>{tr(`«${says}»`, `“${says}”`)}</Text>
           <Box flexDirection="column" marginTop={1}>
             {lifeLine}
             {lifeDetail}
