@@ -1,0 +1,6 @@
+{
+  "name": "gremio",
+  "version": "0.20.0",
+  "description": "El Gremio de Clawd: Clawd es el Maestro del Gremio y cada agente un aventurero (Pícaro, Bardo, Mago, Archimago) en un panel con pixel art animado, sonidos y un Código que elige modelo y esfuerzo.",
+  "types": "./types/index.d.ts"
+}
