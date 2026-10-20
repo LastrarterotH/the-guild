@@ -192,7 +192,7 @@ export type GremioLogEntry = { at: number; text: string; heroId?: string }
 
 declare module 'claude-code' {
   interface PluginState {
-    gremio: {
+    guild: {
       heroes: GremioHero[]
       master: GremioMaster
       /** La ficha abierta: el id de un aventurero, "maestro" o null. */

@@ -10,7 +10,7 @@ import { CELLS, spriteCells, spriteGrid } from '../hooks/sprites'
 
 const PANE = {
   component: 'Pane',
-  requestId: 'gremio',
+  requestId: 'guild',
   props: {
     title: 'Gremio de Clawd',
     isFocused: false,
@@ -51,7 +51,7 @@ test('un aventurero aparece con su clase, su ficha, vuelve a la taberna y suena'
   await $.agent.spawn(SPAWN)
   await $.turn.start({ text: SPAWN.prompt, turnId: 't1', agentId: 'a1' })
 
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   expect((await ui.find({ key: 'sel-a1' }))?.text).toContain('Pícaro 1')
   expect(await ui.find({ type: 'Raster', key: 'u-a1' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /envió a Pícaro 1/ })).toBeDefined()
@@ -103,7 +103,7 @@ test('el Maestro: melodía si termina bien, trompeta triste si falla, nada si se
   await $.turn.complete({ ...done, turnId: 'm3', reason: 'aborted', isAborted: true })
   expect(played).toEqual(['sounds/maestro.wav', 'sounds/caido.wav'])
 
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   await ui.press({ key: 'sonido' })
   await $.turn.complete({ ...done, turnId: 'm4' })
   expect(played).toEqual(['sounds/maestro.wav', 'sounds/caido.wav'])
@@ -130,7 +130,7 @@ test('lo que hace la sesión principal se ve en el Maestro', async ($, on) => {
   mock.clock(on, { now: 1_000_000 })
   on('tool.call', () => ({ result: 'ok' }))
   await $.tool.call({ tool: 'Bash', command: 'ls', description: 'listando la carpeta' })
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   expect(await ui.find({ type: 'Text', text: /listando la carpeta/ })).toBeDefined()
   expect(await ui.find({ type: 'Raster', key: 'maestro' })).toBeDefined()
   await ui.unmount()
@@ -144,13 +144,13 @@ test('con muchos en misión el panel pasa a mini y luego a hueste', async ($, on
     return { model: n % 2 ? 'claude-haiku-5-5' : 'claude-sonnet-5-5', agentId: `h${n}` }
   })
   for (let i = 0; i < 9; i++) await $.agent.spawn({ ...SPAWN, tool_use_id: `tu${i}` })
-  let ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  let ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   expect(await ui.find({ type: 'Raster', key: 'm-h1' })).toBeDefined()
   expect(await ui.find({ type: 'Raster', key: 'u-h1' })).toBeUndefined()
   await ui.unmount()
 
   for (let i = 9; i < 24; i++) await $.agent.spawn({ ...SPAWN, tool_use_id: `tu${i}` })
-  ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   expect(await ui.find({ type: 'Text', text: /Pícaros ×12/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /Bardos ×12/ })).toBeDefined()
   await ui.press({ key: 'hueste-picaro' })
@@ -230,7 +230,7 @@ test('con el Código apagado el Maestro envía sin reglas', async ($, on) => {
     seen = { model: e.model, prompt: e.prompt }
     return { model: 'claude-opus-5-5', agentId: 'd1' }
   })
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   await ui.press({ key: 'doctrina' })
   expect((await ui.find({ key: 'doctrina' }))?.text).toBe('📜✗')
   const { model: _drop, ...noModel } = SPAWN
@@ -250,14 +250,14 @@ test('el Código entra en las instrucciones del Maestro', async ($, on) => {
     outputStyle: null,
     traits: [],
   })
-  expect(r.sections.map(s => s.id)).toContain('gremio:codigo')
+  expect(r.sections.map(s => s.id)).toContain('guild:code')
 })
 
 test('fuera de la terminal dibuja una versión de texto', async ($, on) => {
   mock.clock(on, { now: 1_000_000 })
   on('tool.call', () => ({ result: 'ok' }))
   await $.tool.call({ tool: 'Read', file_path: '/a/b.md' })
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'desktop', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'desktop', ...PANE })
   expect(await ui.find({ type: 'Text', text: /Gran Maestre: 📖 lee b\.md/ })).toBeDefined()
   await ui.unmount()
 })
@@ -311,7 +311,7 @@ test('la cuota del plan se reparte entre el Maestro y los aventureros', async ($
   await $.session.measure(measure(14, 6))
 
   // Pesos: Maestro 0,50 y Pícaro 0,03 (precio equivalente). La sesión consumió 4 puntos de 5 h.
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   // Cerrado: una línea por bolsa, con sus 🪙, lo que queda y cuándo se rellena.
   expect((await ui.find({ key: 'bolsa-five_hour' }))?.text).toBe('▸ Jornada 🪙🪙🪙🪙🪙🪙🪙🪙🪙·  86  ↻ 1 h 30 min')
   expect((await ui.find({ key: 'bolsa-seven_day' }))?.text).toBe('▸ Semana  🪙🪙🪙🪙🪙🪙🪙🪙🪙·  94  ↻ 2 d 23 h')
@@ -343,7 +343,7 @@ test('si el ritmo no alcanza, el panel avisa a qué hora llegarías al 100%', as
   await $.session.measure(measure(60, 20))
   await clock.advance(20 * 60_000)
   await $.session.measure(measure(80, 22))
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   // El aviso se ve sin abrir nada: reemplaza al reloj de la línea.
   expect((await ui.find({ key: 'bolsa-five_hour' }))?.text).toBe('▸ Jornada 🪙🪙· · · · · · · ·  20  se acaba en 20 min')
   await ui.press({ key: 'bolsa-five_hour' })
@@ -359,7 +359,7 @@ test('tu calificación corrige el libro y la experiencia', async ($, on) => {
   on('turn.complete', (_, e) => ({ text: e.answer }))
   await $.agent.spawn(SPAWN)
   await $.turn.complete({ answer: 'listo', durationMs: 900, isAborted: false, turnId: 't1', agentId: 'r1', reason: 'answer', usage: HAIKU_USAGE })
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   await ui.press({ key: 'sel-r1' })
   await ui.press({ key: 'malo' })
   await ui.press({ key: 'libro' })
@@ -391,7 +391,7 @@ test('si los Pícaros vienen fallando, el Código sube la misión a Bardo', asyn
   const { model: _drop, ...noModel } = SPAWN
   await $.agent.spawn(noModel)
   expect(seen).toBe('sonnet')
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   expect(await ui.find({ type: 'Text', text: /Los Pícaros fallaron 2 de sus últimas 3 misiones/ })).toBeDefined()
   await ui.unmount()
 })
@@ -446,7 +446,7 @@ test('la ficha del Maestro: vida = contexto, turno, grupo y ajustes con iconos',
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('tool.call', () => ({ result: 'ok' }))
   on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: 'f1' }))
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   expect((await ui.find({ key: 'vida' }))?.text).toBe('▸ Vida    se mide con la próxima respuesta')
   expect(await ui.find({ type: 'Text', text: /tranquilo|siempre con tu permiso|Código:/ })).toBeUndefined()
 
@@ -487,7 +487,7 @@ test('un aventurero retomado vuelve a salir con su nombre, en otra ronda', async
   await $.agent.spawn({ ...SPAWN, prompt: 'Ahora busca también el favicon.', resume: { agentId: 'r1' } })
   await clock.advance(20_000)
 
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   expect((await ui.find({ key: 'sel-r1' }))?.text).toContain('Pícaro 1')
   expect(await ui.find({ type: 'Raster', key: 'u-r1' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /^⏳ 20 s · ronda 2$/ })).toBeDefined()
@@ -510,7 +510,7 @@ test('la crónica muestra las últimas tres y se abre al tocarla', async ($, on)
     return { model: 'claude-haiku-5-5', agentId: `c${n}` }
   })
   for (let i = 0; i < 5; i++) await $.agent.spawn({ ...SPAWN, tool_use_id: `tu${i}`, description: `misión ${i + 1}` })
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   expect((await ui.find({ key: 'cronica' }))?.text).toBe('📖 Crónica ▸')
   expect(await ui.find({ type: 'Text', text: /🧭 Clawd envió a Pícaro 5, el Rastreador: misión 5$/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /misión 2$/ })).toBeUndefined()
@@ -577,7 +577,7 @@ test('el panel se dibuja a 40, 60 y 110 columnas sin que las líneas fijas se sa
   await clock.advance(60_000)
   await $.turn.complete({ answer: 'Está en src/theme.ts', durationMs: 900, isAborted: false, turnId: 't1', agentId: 'w1', reason: 'answer', usage: HAIKU_USAGE })
   for (const cols of [40, 60, 110]) {
-    const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE, props: { ...PANE.props, bodyColumns: cols } })
+    const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE, props: { ...PANE.props, bodyColumns: cols } })
     if (cols === 40) {
       await ui.press({ key: 'libro' })
       await ui.press({ key: 'cronica' })
@@ -616,7 +616,7 @@ test('lo que apagaste se recuerda en la sesión siguiente y la línea de estado 
   on('session.measure', (_, e) => ({ changed: e.changed }))
   await $.session.start({ cwd: '/x', surface: 'terminal', isInteractive: true } as never)
   expect(shown.at(-1)).toBe('♥ 68 · 🪙 72 · 📜✗ sin Código')
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   expect((await ui.find({ key: 'sonido' }))?.text).toBe('🔇')
   expect((await ui.find({ key: 'doctrina' }))?.text).toBe('📜✗')
   expect(await ui.find({ type: 'Text', text: /Clawd abre el gremio$/ })).toBeDefined()
@@ -642,7 +642,7 @@ test('con poca vida Clawd avisa una sola vez y se rearma tras un /compact', asyn
   await $.session.measure(ctx(40))
   await $.session.measure(ctx(90))
   expect(toasts).toHaveLength(2)
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   expect(await ui.find({ type: 'Text', text: /💤 A Clawd le queda poca vida \(10 %\)/ })).toBeDefined()
   await ui.unmount()
 })
@@ -676,7 +676,7 @@ test('la bolsa avisa una vez por ventana si el ritmo no alcanza, y el botín se 
 
   await $.agent.spawn(SPAWN)
   await $.turn.complete({ answer: 'Está en src/theme.ts', durationMs: 900, isAborted: false, turnId: 't1', agentId: 'p1', reason: 'answer', usage: HAIKU_USAGE })
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   await ui.press({ key: 'sel-p1' })
   await ui.press({ key: 'copiar' })
   expect(copied).toBe('Está en src/theme.ts')
@@ -718,7 +718,7 @@ test('cuando el Código sube de clase por la experiencia, la crónica lo cuenta'
   on('turn.complete', (_, e) => ({ text: e.answer }))
   await $.agent.spawn(SPAWN)
   await $.turn.complete({ answer: '', durationMs: 900, isAborted: false, turnId: 't1', agentId: 'f9', reason: 'error' as never, usage: HAIKU_USAGE })
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   await ui.press({ key: 'cronica' })
   expect(await ui.find({ type: 'Text', text: /🛑 Los Pícaros fallaron 2 de sus últimas 3 misiones de identificar o buscar: la próxima va con un Bardo/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /🩹 Pícaro 1 volvió herido/ })).toBeDefined()
@@ -739,7 +739,7 @@ test('un aventurero sin acciones hace 5 min se ve quieto; la crónica abre su fi
   await $.agent.spawn(SPAWN)
   await $.tool.call({ tool: 'Bash', command: 'ls', description: 'mirando', agentId: 'q1' } as never)
   await clock.advance(6 * 60_000)
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   expect(await ui.find({ type: 'Text', text: /^💤 quieto hace 6 min$/ })).toBeDefined()
   // La línea de la crónica de un aventurero abre su ficha.
   const line = (await ui.findAll({ type: 'Button' })).find(b => String(b.key ?? '').startsWith('cronica-'))
@@ -753,7 +753,7 @@ test('un aventurero sin acciones hace 5 min se ve quieto; la crónica abre su fi
   for (let i = 2; i <= 13; i++)
     await $.turn.complete({ answer: 'listo', durationMs: 900, isAborted: false, turnId: `t${i}`, agentId: `q${i}`, reason: 'answer', usage: HAIKU_USAGE })
   await clock.advance(6500)
-  const ui2 = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui2 = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   expect((await ui2.find({ key: 'taberna-mas' }))?.text).toMatch(/^▸ \+\d+ más$/)
   const inTavern = async () => (await ui2.findAll({ type: 'Raster' })).filter(r => String(r.key ?? '').startsWith('t-')).length
   expect(await inTavern()).toBe(6)
@@ -770,7 +770,7 @@ test('si el motor ya no tiene la conversación de un aventurero, no se ofrece ab
   on('turn.complete', (_, e) => ({ text: e.answer }))
   await $.agent.spawn(SPAWN)
   await $.turn.complete({ answer: 'listo', durationMs: 900, isAborted: false, turnId: 't1', agentId: 'viejo', reason: 'answer', usage: OPUS_USAGE })
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   await ui.press({ key: 'sel-viejo' })
   expect(await ui.find({ key: 'cerrar' })).toBeDefined()
   expect(await ui.find({ key: 'ver' })).toBeUndefined()
@@ -793,7 +793,7 @@ test('el plantel del día: sale el mismo aventurero si está libre; en la tabern
   await done('pl1')
   await $.agent.spawn({ ...SPAWN, tool_use_id: 'tu2', description: 'arreglar el login' })
   await $.agent.spawn({ ...SPAWN, tool_use_id: 'tu3' })
-  let ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  let ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   // Pícaro 1 vuelve a salir (con su apodo de la primera vez); como está ocupado, el siguiente es Pícaro 2.
   expect((await ui.find({ key: 'sel-pl2' }))?.text).toContain('Pícaro 1')
   expect((await ui.find({ key: 'sel-pl3' }))?.text).toContain('Pícaro 2')
@@ -802,7 +802,7 @@ test('el plantel del día: sale el mismo aventurero si está libre; en la tabern
   await done('pl2')
   await done('pl3')
   await clock.advance(6500)
-  ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   const tavern = (await ui.findAll({ type: 'Raster' })).filter(r => String(r.key ?? '').startsWith('t-'))
   expect(tavern.map(r => r.key).sort()).toEqual(['t-pl2', 't-pl3'])
   expect((tavern[0]?.props as { cells?: string }).cells).toBe(spriteCells('picaro', 'quieto', 0, 'mini', true))
@@ -827,7 +827,7 @@ test('a medianoche todos se van a casa y la numeración vuelve a 1', async ($, o
   await $.turn.complete({ answer: 'listo', durationMs: 900, isAborted: false, turnId: 't2', agentId: 'md2', reason: 'answer', usage: HAIKU_USAGE })
   await clock.advance(24 * 3_600_000)
   await $.agent.spawn({ ...SPAWN, tool_use_id: 'tu3' })
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   expect(await ui.find({ type: 'Text', text: /🌙 Fin de la jornada: 2 misiones, 2 con botín\. Todos se fueron a casa\./ })).toBeDefined()
   expect((await ui.find({ key: 'sel-md3' }))?.text).toContain('Pícaro 1')
   expect(await ui.find({ type: 'Raster', key: 't-md1' })).toBeUndefined()
@@ -861,7 +861,7 @@ test('el reino: las otras sesiones aparecen con su estado y la que pregunta va a
   startMocks(on, 'propia')
   await $.session.start({ cwd: '/Users/ana/Code/gremio', surface: 'terminal', isInteractive: true } as never)
   expect(shown.at(-1)).toBe('♥ 68 · ❓ huerto')
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   // La que pregunta primero; la que no late hace 10 min no aparece.
   expect((await ui.find({ key: 'reino' }))?.text).toBe('🏰 Reino ▸ huerto ❓ 2 min · faro ⏳')
   // Arriba de todo, el aviso de la que te pregunta.
@@ -958,7 +958,7 @@ test('«Hoy» cuenta las misiones, el botín y lo sin leer; tocarlo abre el prim
   await $.turn.complete({ answer: 'uno', durationMs: 900, isAborted: false, turnId: 't1', agentId: 'h1', reason: 'answer', usage: HAIKU_USAGE })
   await clock.advance(1000)
   await $.turn.complete({ answer: 'dos', durationMs: 900, isAborted: false, turnId: 't2', agentId: 'h2', reason: 'answer', usage: HAIKU_USAGE })
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   expect((await ui.find({ key: 'hoy' }))?.text).toBe('  Hoy     3 misiones · 2 con botín · 2 sin leer')
   await ui.press({ key: 'hoy' })
   expect(await ui.find({ type: 'Text', text: /^💰 uno$/ })).toBeDefined()
@@ -973,7 +973,7 @@ test('el nombre del reino sale de la raíz de la sesión, no de la carpeta a la 
   startMocks(on, 'propia')
   on('session.root', () => ({ value: '/Users/ana/Code/faro' }) as never)
   await $.session.start({ cwd: '/Users/ana/.claude/projects/-Users-ana/memory', surface: 'terminal', isInteractive: true } as never)
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   await ui.press({ key: 'reino' })
   const rows = (await ui.findAll({ type: 'Button' })).filter(b => String(b.key ?? '').startsWith('reino-')).map(b => b.text)
   expect(rows.some(r => /● faro/.test(r))).toBe(true)
@@ -989,7 +989,7 @@ test('la siesta: mientras se resume la conversación Clawd duerme, y despierta c
   on('session.compact', () => new Promise(done => (release = () => done({ messages: [{ role: 'user', text: 'Resumen de la conversación', toolUses: [] }], tokensBefore: 734_000, tokensAfter: 80_000 }))) as never)
   await $.session.measure({ ...measure(10, 5), context: { window: 1_000_000, tokens: 734_000, percent: 73 }, changed: ['context'] })
   const napping = $.session.compact({ trigger: 'auto', messages: [{ role: 'user', text: 'hola', toolUses: [] }] } as never)
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   // El resumen arranca un instante después: se espera a que Clawd se duerma.
   const asleep = { type: 'Text' as const, text: /«😴 durmiendo una siesta…»/ }
   for (let i = 0; i < 50 && !(await ui.find(asleep)); i++) await ui.redraw()
@@ -1016,7 +1016,7 @@ test('ir a la sesión: el reino le pide a Terminal la pestaña de esa sesión', 
   })
   startMocks(on, 'propia')
   await $.session.start({ cwd: '/Users/ana/Code/gremio', surface: 'terminal', isInteractive: true } as never)
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   // El aviso de arriba lleva a la sesión que pregunta.
   expect((await ui.find({ key: 'ir-pide-otra' }))?.text).toBe('❓ Recetario te hace una pregunta · 1 min · 🚪 ir')
   await ui.press({ key: 'ir-pide-otra' })
@@ -1038,7 +1038,7 @@ test('el bocadillo: la primera frase del botín, sin Markdown y corta', async ($
   on('turn.complete', (_, e) => ({ text: e.answer }))
   await $.agent.spawn(SPAWN)
   await $.turn.complete({ answer: 'Está en src/theme.ts. Lo demás no importa.', durationMs: 900, isAborted: false, turnId: 't1', agentId: 'bo1', reason: 'answer', usage: HAIKU_USAGE })
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   expect(await ui.find({ type: 'Text', text: /^💬 Está en src\/theme\.ts\.$/ })).toBeDefined()
   await ui.unmount()
 })
@@ -1057,12 +1057,12 @@ test('el pergamino: el botín completo, con formato, en un panel aparte', async 
   const long = `## Hallazgos\n\n${'Una línea larga del informe. '.repeat(40)}\n\n- uno\n- dos`
   await $.agent.spawn({ ...SPAWN, model: 'sonnet' })
   await $.turn.complete({ answer: long, durationMs: 900, isAborted: false, turnId: 't1', agentId: 'pg1', reason: 'answer', usage: HAIKU_USAGE })
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   await ui.press({ key: 'sel-pg1' })
   await ui.press({ key: 'pergamino' })
-  expect(opened).toBe('gremio-pergamino|📜 Botín de Bardo 1')
+  expect(opened).toBe('guild-scroll|📜 Botín de Bardo 1')
   await ui.unmount()
-  const scroll = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE, requestId: 'gremio-pergamino' })
+  const scroll = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE, requestId: 'guild-scroll' })
   const md = await scroll.find({ type: 'Markdown' })
   expect((md?.props as { text?: string }).text).toBe(long)
   expect(await scroll.find({ key: 'pergamino-copiar' })).toBeDefined()
@@ -1138,7 +1138,7 @@ test('lo que suena se ve: la pestaña se marca, macOS avisa y las demás sesione
   startMocks(on, 'propia')
   await $.session.start({ cwd: '/Users/ana', surface: 'terminal', isInteractive: true } as never)
   // Lo que sonó en otra sesión aparece arriba, con dónde y quién.
-  const ui = await $.ui.mount({ plugin: 'gremio', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   for (let i = 0; i < 30 && !(await ui.find({ key: 'ir-sono-otra' })); i++) await ui.redraw()
   expect((await ui.find({ key: 'ir-sono-otra' }))?.text).toBe('🔔 Recetario · Clawd terminó · 5 s · 🚪 ir'.replace('5 s', 'ahora'))
   await ui.unmount()

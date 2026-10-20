@@ -1,6 +1,6 @@
 {
-  "name": "gremio",
+  "name": "guild",
   "version": "0.20.0",
-  "description": "El Gremio de Clawd: Clawd es el Maestro del Gremio y cada agente un aventurero (Pícaro, Bardo, Mago, Archimago) en un panel con pixel art animado, sonidos y un Código que elige modelo y esfuerzo.",
+  "description": "The Guild: Clawd is the Grand Master and every agent is an adventurer (Rogue, Bard, Mage, Archmage) in a live pixel-art panel, with sounds and a Guild Code that picks each agent's model and effort. Speaks English and Spanish.",
   "types": "./types/index.d.ts"
 }

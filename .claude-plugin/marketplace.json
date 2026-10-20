@@ -1,5 +1,5 @@
 {
   "name": "the-guild",
   "owner": { "name": "LastrarterotH" },
-  "plugins": [{ "name": "gremio", "source": "./" }]
+  "plugins": [{ "name": "guild", "source": "./" }]
 }

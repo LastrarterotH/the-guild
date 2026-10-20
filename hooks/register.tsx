@@ -54,9 +54,9 @@ import { addUsage, costOf, totalTokens, usageFrom } from './oro'
 import { CELLS, CLASS_COLOR, CLASS_LABEL, CLASS_LEVEL, CLASS_PLURAL, spriteCells } from './sprites'
 import type { Pose, Size } from './sprites'
 
-const PANE = 'gremio'
+const PANE = 'guild'
 // El pergamino: el botín completo en un panel aparte.
-const SCROLL = 'gremio-pergamino'
+const SCROLL = 'guild-scroll'
 const SLOT = 15
 const MINI = 10
 const GOLD = CLASS_COLOR.maestro
@@ -101,32 +101,32 @@ const EMPTY_BOOK: GremioBook = {
 }
 const CLASSIFIER = 'claude-haiku-5-5'
 
-const heroes = atom({ plugin: 'gremio', key: 'heroes' } as const, [] as GremioHero[])
-const master = atom({ plugin: 'gremio', key: 'master' } as const, RESTING)
-const selected = atom({ plugin: 'gremio', key: 'selected' } as const, null as string | null)
-const log = atom({ plugin: 'gremio', key: 'log' } as const, [] as GremioLogEntry[])
-const counters = atom({ plugin: 'gremio', key: 'counters' } as const, {} as Record<string, number>)
-const doctrine = atom({ plugin: 'gremio', key: 'doctrine' } as const, true)
-const sound = atom({ plugin: 'gremio', key: 'sound' } as const, true)
-const expanded = atom({ plugin: 'gremio', key: 'expanded' } as const, null as string | null)
-const treasury = atom({ plugin: 'gremio', key: 'treasury' } as const, EMPTY_TREASURY)
-const book = atom({ plugin: 'gremio', key: 'book' } as const, EMPTY_BOOK)
-const bookOpen = atom({ plugin: 'gremio', key: 'bookOpen' } as const, false)
-const purseOpen = atom({ plugin: 'gremio', key: 'purseOpen' } as const, null as string | null)
-const lifeOpen = atom({ plugin: 'gremio', key: 'lifeOpen' } as const, false)
-const lifeWarned = atom({ plugin: 'gremio', key: 'lifeWarned' } as const, false)
-const cardMore = atom({ plugin: 'gremio', key: 'cardMore' } as const, false)
-const chronicleOpen = atom({ plugin: 'gremio', key: 'chronicleOpen' } as const, false)
-const tavernOpen = atom({ plugin: 'gremio', key: 'tavernOpen' } as const, false)
-const day = atom({ plugin: 'gremio', key: 'day' } as const, '')
-const realm = atom({ plugin: 'gremio', key: 'realm' } as const, [] as GremioRealmEntry[])
-const realmOpen = atom({ plugin: 'gremio', key: 'realmOpen' } as const, false)
-const scrollHero = atom({ plugin: 'gremio', key: 'scrollHero' } as const, null as string | null)
-const realmPicked = atom({ plugin: 'gremio', key: 'realmPicked' } as const, null as string | null)
-const label = atom({ plugin: 'gremio', key: 'label' } as const, '')
-const spend = atom({ plugin: 'gremio', key: 'spend' } as const, { key: '', cost: 0 })
-const labelSource = atom({ plugin: 'gremio', key: 'labelSource' } as const, '' as '' | 'manual' | 'title' | 'folder' | 'transcript' | 'prompt')
-const quota = atom({ plugin: 'gremio', key: 'quota' } as const, EMPTY_QUOTA)
+const heroes = atom({ plugin: 'guild', key: 'heroes' } as const, [] as GremioHero[])
+const master = atom({ plugin: 'guild', key: 'master' } as const, RESTING)
+const selected = atom({ plugin: 'guild', key: 'selected' } as const, null as string | null)
+const log = atom({ plugin: 'guild', key: 'log' } as const, [] as GremioLogEntry[])
+const counters = atom({ plugin: 'guild', key: 'counters' } as const, {} as Record<string, number>)
+const doctrine = atom({ plugin: 'guild', key: 'doctrine' } as const, true)
+const sound = atom({ plugin: 'guild', key: 'sound' } as const, true)
+const expanded = atom({ plugin: 'guild', key: 'expanded' } as const, null as string | null)
+const treasury = atom({ plugin: 'guild', key: 'treasury' } as const, EMPTY_TREASURY)
+const book = atom({ plugin: 'guild', key: 'book' } as const, EMPTY_BOOK)
+const bookOpen = atom({ plugin: 'guild', key: 'bookOpen' } as const, false)
+const purseOpen = atom({ plugin: 'guild', key: 'purseOpen' } as const, null as string | null)
+const lifeOpen = atom({ plugin: 'guild', key: 'lifeOpen' } as const, false)
+const lifeWarned = atom({ plugin: 'guild', key: 'lifeWarned' } as const, false)
+const cardMore = atom({ plugin: 'guild', key: 'cardMore' } as const, false)
+const chronicleOpen = atom({ plugin: 'guild', key: 'chronicleOpen' } as const, false)
+const tavernOpen = atom({ plugin: 'guild', key: 'tavernOpen' } as const, false)
+const day = atom({ plugin: 'guild', key: 'day' } as const, '')
+const realm = atom({ plugin: 'guild', key: 'realm' } as const, [] as GremioRealmEntry[])
+const realmOpen = atom({ plugin: 'guild', key: 'realmOpen' } as const, false)
+const scrollHero = atom({ plugin: 'guild', key: 'scrollHero' } as const, null as string | null)
+const realmPicked = atom({ plugin: 'guild', key: 'realmPicked' } as const, null as string | null)
+const label = atom({ plugin: 'guild', key: 'label' } as const, '')
+const spend = atom({ plugin: 'guild', key: 'spend' } as const, { key: '', cost: 0 })
+const labelSource = atom({ plugin: 'guild', key: 'labelSource' } as const, '' as '' | 'manual' | 'title' | 'folder' | 'transcript' | 'prompt')
+const quota = atom({ plugin: 'guild', key: 'quota' } as const, EMPTY_QUOTA)
 
 const WRITE_TOOLS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
 // Herramientas que esperan tu respuesta.
@@ -1275,7 +1275,7 @@ export const register: Register = on => {
     const composed = await next(e)
     try {
       if (await read($, doctrine)) {
-        return { sections: [...composed.sections, { id: 'gremio:codigo', text: DOCTRINE, scope: 'session' as const }] }
+        return { sections: [...composed.sections, { id: 'guild:code', text: DOCTRINE, scope: 'session' as const }] }
       }
     } catch {
       // Sin Código, el prompt queda como estaba.
