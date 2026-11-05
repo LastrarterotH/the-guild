@@ -46,6 +46,20 @@ Un mod para Claude Code. Clawd es el **Gran Maestre** del gremio (tu sesión pri
 - **Sonidos:** una melodía suave de marimba cuando Clawd termina, un sonido propio por clase al volver y una trompeta triste cuando algo falla.
 - **Zoom:** con muchos agentes, el panel pasa a versión mini y luego a una fila por clase.
 
+## Temas
+
+El mismo gremio se puede contar dentro de **la Matrix**: `/gremio tema matrix`. No cambia nada de cómo funciona (el Código, el tesoro, el reino, el libro), solo la historia, el pixel art, los colores y los sonidos. `/gremio tema gremio` devuelve a Clawd; la elección se recuerda entre sesiones.
+
+| Gremio | Matrix | Modelo |
+|---|---|---|
+| Gran Maestre (Clawd) | **el Arquitecto**: pelo y barba blancos, lentes redondos, traje claro | la sesión principal |
+| Archimago | **Neo**: abrigo largo oscuro y lentes pequeños (sigue pidiendo permiso: la píldora roja) | Fable |
+| Mago | **el Oráculo**: pelo gris, chaleco verde azulado | Opus |
+| Bardo | **un Agente**: traje oscuro, camisa blanca, corbata y lentes oscuros | Sonnet |
+| Pícaro | **un Centinela**: cúpula de metal con ojos rojos y tentáculos que se mueven | Haiku |
+
+Las misiones pasan a ser conexiones (un programa se conecta y se desconecta al terminar), el botín es la descarga, la taberna es el Constructo, el reino es la Red, la vida es la señal, las monedas son baterías 🔋, la siesta es un déjà vu y la campana es el teléfono ☎️. Sobre el Arquitecto corre una línea de lluvia digital en verde fósforo. Los sonidos los sintetiza el propio mod (un timbre de teléfono suave, un barrido de tiempo bala, la cucharita contra la taza, dos pitidos de auricular, un zumbido mecánico grave, estática): nada sale de las películas.
+
 ## Comandos
 
 - `/guild` abre el panel (`/gremio` también funciona).

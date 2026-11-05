@@ -7,7 +7,8 @@ import { absorbQuota, addProjectSpend, projectShares } from '../hooks/libro'
 import { coinsOf, firstUserTexts, lastTitle } from '../hooks/reino'
 import { classOf, describeTool, firstSentence, modelName } from '../hooks/describe'
 import { plan } from '../hooks/doctrine'
-import { langChoice, langFrom, setLang } from '../hooks/i18n'
+import { langChoice, langFrom, setLang, tr } from '../hooks/i18n'
+import { rain, recastAs, setTheme, themeChoice } from '../hooks/tema'
 import { OLD_STORE, pickImport } from '../hooks/migrar'
 import { CELLS, spriteCells, spriteGrid } from '../hooks/sprites'
 
@@ -1292,4 +1293,75 @@ test('la primera vez como guild trae el libro y los ajustes del almacén de grem
   const finds = runs.filter(r => r[0] === 'find' && r[1]?.endsWith('/plugins/store')).length
   await $.session.start({ cwd: '/Users/ana/Code/recetario', surface: 'terminal', isInteractive: true } as never)
   expect(runs.filter(r => r[0] === 'find' && r[1]?.endsWith('/plugins/store')).length).toBe(finds)
+})
+
+// ── El tema Matrix ──────────────────────────────────────────────────────────
+
+test('el tema Matrix recuenta el gremio en español', () => {
+  const es = (t: string) => recastAs(t, 'es', 'matrix')
+  expect(es('Gremio de Clawd')).toBe('Matrix del Arquitecto')
+  expect(es('🧭 Clawd envió a Pícaro 2, el Rastreador: buscar el logo')).toBe('🔌 El Arquitecto conectó a Centinela 2, el Rastreador: buscar el logo')
+  expect(es('💰 Bardo 1 volvió con el botín')).toBe('💾 Agente 1 se desconectó con la descarga')
+  expect(es('Código del Gremio')).toBe('Código de la Matrix')
+  expect(es('🍺 Taberna')).toBe('⬜ Constructo')
+  expect(es('Clawd quiere enviar a un Archimago (Fable). ¿Lo autorizas?')).toBe('El Arquitecto quiere conectar a Neo (Fable). ¿Píldora roja? (sí = lo autorizas)')
+  expect(es('A Clawd le queda poca vida (12 %)')).toBe('Al Arquitecto le queda poca señal (12 %)')
+  expect(es('🌅 Clawd despertó de su siesta')).toBe('🌅 El Arquitecto despertó de su déjà vu')
+  expect(es('Los Magos fallan: la próxima va con un Archimago')).toBe('Los Oráculos fallan: la próxima va con Neo')
+})
+
+test('el tema Matrix recuenta el gremio en inglés', () => {
+  const en = (t: string) => recastAs(t, 'en', 'matrix')
+  expect(en("Clawd's Guild")).toBe("The Architect's Matrix")
+  expect(en("open Clawd's Guild")).toBe("open the Architect's Matrix")
+  expect(en('🔔 Clawd finished')).toBe('☎️ The Architect finished')
+  expect(en('💰 Rogue 2 came back with the loot')).toBe('💾 Sentinel 2 unplugged with the download')
+  expect(en('Clawd wants to send an Archmage (Fable). Do you approve?')).toBe('The Architect wants to jack in Neo (Fable). Red pill? (yes = approve)')
+  expect(en('the next one goes with a Mage')).toBe('the next one goes with an Oracle')
+  expect(en('🏰 Realm')).toBe('🌐 Network')
+})
+
+test('el tema de siempre deja el texto tal cual y tr() sigue al tema', () => {
+  expect(recastAs('Gremio de Clawd', 'es', 'guild')).toBe('Gremio de Clawd')
+  setLang('es')
+  setTheme('matrix')
+  expect(tr('Gremio abierto.', 'Guild opened.')).toBe('Matrix abierta.')
+  setLang('en')
+  expect(tr('Gremio abierto.', 'Guild opened.')).toBe('Matrix opened.')
+  setTheme('guild')
+  setLang('es')
+  expect(tr('Gremio abierto.', 'Guild opened.')).toBe('Gremio abierto.')
+})
+
+test('/guild tema entiende los dos temas', () => {
+  expect(themeChoice('matrix')).toBe('matrix')
+  expect(themeChoice(' La Matrix ')).toBe('matrix')
+  expect(themeChoice('gremio')).toBe('guild')
+  expect(themeChoice('guild')).toBe('guild')
+  expect(themeChoice('zion')).toBeNull()
+})
+
+test('cada celda de cada sprite de la Matrix lleva a lo más dos colores', () => {
+  setTheme('matrix')
+  const bad: string[] = []
+  for (const cls of ['maestro', 'archimago', 'mago', 'bardo', 'picaro'] as const)
+    for (const pose of ['quieto', 'marcha', 'parpadeo', 'caido', 'cansado', 'durmiendo'] as const)
+      for (const frame of [0, 1])
+        for (const size of ['big', 'small', 'mini'] as const) {
+          const g = spriteGrid(cls, pose, frame, size)
+          expect(g.length).toBe(CELLS[size].rows * 2)
+          for (let y = 0; y < g.length; y += 2)
+            for (let x = 0; x < (g[0]?.length ?? 0); x += 2) {
+              const colors = new Set([g[y]?.[x], g[y]?.[x + 1], g[y + 1]?.[x], g[y + 1]?.[x + 1]].map(c => c ?? -1))
+              if (colors.size > 2) bad.push(`${cls} ${pose} ${size} (${x},${y})`)
+            }
+        }
+  setTheme('guild')
+  expect([...new Set(bad)]).toEqual([])
+})
+
+test('la lluvia de la Matrix mide lo que se le pide y cambia con el reloj', () => {
+  expect(rain(40, 0).length).toBe(40)
+  expect(rain(40, 0)).not.toBe(rain(40, 30))
+  expect(rain(40, 0)).toBe(rain(40, 1))
 })

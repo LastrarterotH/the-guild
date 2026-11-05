@@ -46,6 +46,20 @@ A mod for Claude Code. Clawd is the **Grand Master** of the guild (your main ses
 - **Sounds:** a soft marimba melody when Clawd finishes, a sound of its own for each class on return, and a sad trumpet when something fails.
 - **Zoom:** with many agents, the panel switches to a mini version and then to one row per class.
 
+## Themes
+
+The same guild can be told inside **the Matrix**: `/guild theme matrix`. Nothing changes in how it works (the Code, the treasury, the realm, the ledger), only the story, the pixel art, the colors and the sounds. `/guild theme guild` brings Clawd back; the choice is remembered between sessions.
+
+| Guild | Matrix | Model |
+|---|---|---|
+| Grand Master (Clawd) | **the Architect**: white hair and beard, round glasses, light suit | the main session |
+| Archmage | **Neo**: long dark coat and small shades (still asks your permission: the red pill) | Fable |
+| Mage | **the Oracle**: gray hair, teal cardigan | Opus |
+| Bard | **an Agent**: dark suit, white shirt, tie and shades | Sonnet |
+| Rogue | **a Sentinel**: a metal dome with red eyes and moving tentacles | Haiku |
+
+Quests become connections (an adventurer is jacked in and unplugs when done), loot is the download, the tavern is the Construct, the realm is the Network, HP is the signal, coins are batteries 🔋, the nap is a déjà vu and the bell is the telephone ☎️. A line of digital rain runs above the Architect, in phosphor green. The sounds are synthesized by the mod itself (a soft phone ring, a bullet-time sweep, a spoon on a cup, two earpiece beeps, a low mechanical thrum, static): nothing from the films.
+
 ## Commands
 
 - `/guild` opens the panel (`/gremio` also works).
@@ -54,6 +68,7 @@ A mod for Claude Code. Clawd is the **Grand Master** of the guild (your main ses
 - `/guild close` closes the panel (`cerrar`).
 - `/guild name <text>` names this session in the realm (otherwise it is named after its folder or its first requests) (`nombre <texto>`).
 - `/guild language en|es|auto` changes the guild's language (`idioma en|es|auto`).
+- `/guild theme matrix|guild` retells the guild inside the Matrix, or back (`tema matrix|gremio`).
 
 Subcommands are accepted in both languages.
 

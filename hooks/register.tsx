@@ -54,6 +54,8 @@ import { addUsage, costOf, totalTokens, usageFrom } from './oro'
 import { CELLS, CLASS_COLOR, CLASS_LABEL, CLASS_LEVEL, CLASS_PLURAL, spriteCells } from './sprites'
 import type { Pose, Size } from './sprites'
 import { lang, langChoice, langFrom, setLang, tr } from './i18n'
+import type { Theme } from './tema'
+import { rain, recastAs, setTheme, theme, themeChoice } from './tema'
 import type { Lang } from './i18n'
 import { OLD_STORE, pickImport } from './migrar'
 
@@ -62,7 +64,6 @@ const PANE = 'guild'
 const SCROLL = 'guild-scroll'
 const SLOT = 15
 const MINI = 10
-const GOLD = CLASS_COLOR.maestro
 const RED = '#ef476f'
 // Bajo esta vida (contexto libre, %) Clawd se cansa y avisa.
 const LOW_LIFE = 20
@@ -71,8 +72,13 @@ const RETURN_MS = 6000
 // Sin acciones ni herramientas en curso por este tiempo, un aventurero se ve «quieto».
 const QUIET_MS = 5 * 60 * 1000
 const idle = () => tr('esperando una nueva misión', 'waiting for a new quest')
-// Lo que quedó guardado como «quieto» puede estar en cualquiera de los dos idiomas.
-const isIdle = (doing: string) => doing === 'esperando una nueva misión' || doing === 'waiting for a new quest'
+// Lo que quedó guardado como «quieto» puede estar en cualquiera de los dos idiomas y temas.
+const IDLE_TEXTS = new Set(
+  (['es', 'en'] as const).flatMap(l =>
+    (['guild', 'matrix'] as const).map(t => recastAs(l === 'en' ? 'waiting for a new quest' : 'esperando una nueva misión', l, t)),
+  ),
+)
+const isIdle = (doing: string) => IDLE_TEXTS.has(doing)
 // «un Mago» / «an Archmage».
 const aOrAn = (word: string) => (/^[AEIOU]/i.test(word) ? `an ${word}` : `a ${word}`)
 
@@ -234,7 +240,7 @@ function tick($: EngineInterface): void {
 const GAIN: Partial<Record<SoundName, number>> = { maestro: 0.7 }
 
 function play($: EngineInterface, name: SoundName): void {
-  void $.audio.play({ asset: `sounds/${name}.wav` }, { gain: GAIN[name] ?? 1 }).catch(() => undefined)
+  void $.audio.play({ asset: `sounds/${theme() === 'matrix' ? 'matrix/' : ''}${name}.wav` }, { gain: GAIN[name] ?? 1 }).catch(() => undefined)
 }
 
 async function chime($: EngineInterface, name: SoundName): Promise<void> {
@@ -250,8 +256,8 @@ async function note($: EngineInterface, text: string, heroId?: string): Promise<
 function statusText(life: number | null, purse: number | null, running: number, isCode: boolean, asking: readonly string[] = []): string | undefined {
   const parts = [
     life === null ? null : `♥ ${Math.round(life)}`,
-    purse === null ? null : `🪙 ${Math.round(purse)}`,
-    running > 0 ? `🧭 ${running}` : null,
+    purse === null ? null : tr(`🪙 ${Math.round(purse)}`, `🪙 ${Math.round(purse)}`),
+    running > 0 ? tr(`🧭 ${running}`, `🧭 ${running}`) : null,
     isCode ? null : tr('📜✗ sin Código', '📜✗ no Code'),
     asking.length > 0 ? `❓ ${asking.join(', ')}` : null,
   ].filter((p): p is string => p !== null)
@@ -556,7 +562,7 @@ async function resumable($: EngineInterface): Promise<{ block: string; sig: stri
 }
 
 // Lo que apagaste (sonido, Código) y el idioma que elegiste se recuerdan entre sesiones.
-type Settings = { sound: boolean; doctrine: boolean; language?: Lang }
+type Settings = { sound: boolean; doctrine: boolean; language?: Lang; theme?: Theme }
 
 async function savedSettings($: EngineInterface): Promise<Partial<Settings>> {
   const saved = await $.store.get('ajustes')
@@ -600,6 +606,25 @@ async function pickLanguage($: EngineInterface): Promise<void> {
     setLang(langFrom(typeof value === 'string' ? value : null, locales))
   } catch {
     // Queda el idioma que había.
+  }
+}
+
+/** El tema de la sesión: el que elegiste con `/guild theme`, o el gremio de siempre. */
+async function pickTheme($: EngineInterface): Promise<void> {
+  try {
+    const chosen = (await savedSettings($)).theme
+    setTheme(chosen === 'matrix' ? 'matrix' : 'guild')
+  } catch {
+    // Queda el tema que había.
+  }
+}
+
+/** Guarda el tema elegido. */
+async function saveTheme($: EngineInterface, choice: Theme): Promise<void> {
+  try {
+    await $.store.set('ajustes', { ...(await savedSettings($)), theme: choice })
+  } catch {
+    // Vale para esta sesión.
   }
 }
 
@@ -952,14 +977,15 @@ async function askFable($: EngineInterface, e: AgentSpawnInput): Promise<'yes' |
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await importOldStore($)
+    await pickTheme($)
     await pickLanguage($)
     // «/guild» para todos; «/gremio» también, para quien habla español.
     for (const name of lang() === 'es' ? ['guild', 'gremio'] : ['guild']) {
       await $.command.register({
         name,
         description: tr(
-          'Abre el Gremio de Clawd: el Gran Maestre y sus aventureros en vivo ("sonidos" los toca todos, "cuentas" muestra la cuota del plan, "idioma en" lo pasa a inglés)',
-          'Opens Clawd\'s Guild: the Grand Master and their adventurers live ("sounds" plays them all, "accounts" shows the plan quota, "language es" switches to Spanish)',
+          'Abre el Gremio de Clawd: el Gran Maestre y sus aventureros en vivo ("sonidos" los toca todos, "cuentas" muestra la cuota del plan, "idioma en" lo pasa a inglés, "tema matrix" lo cuenta dentro de la Matrix)',
+          'Opens Clawd\'s Guild: the Grand Master and their adventurers live ("sounds" plays them all, "accounts" shows the plan quota, "language es" switches to Spanish, "theme matrix" retells it inside the Matrix)',
         ),
       })
     }
@@ -1042,6 +1068,32 @@ export const register: Register = on => {
       await update($, labelSource, () => 'manual')
       await beat($, true)
       return { text: tr(`En el reino, esta sesión se llama «${name}».`, `In the realm, this session is called "${name}".`) }
+    }
+    const themeArg = /^\s*(?:tema|theme)\b\s*(.*)$/i.exec(e.args)
+    if (themeArg) {
+      const choice = themeChoice(themeArg[1] ?? '')
+      if (!choice) {
+        return {
+          text: tr(
+            'Temas: `/guild tema matrix` (el Arquitecto y sus programas) o `/guild tema gremio` (Clawd y sus aventureros).',
+            'Themes: `/guild theme matrix` (the Architect and its programs) or `/guild theme guild` (Clawd and the adventurers).',
+          ),
+        }
+      }
+      await saveTheme($, choice)
+      setTheme(choice)
+      await update($, master, m => (isIdle(m.doing) ? { ...m, doing: idle() } : m))
+      $.ui.invalidate('prompt.section')
+      $.ui.invalidate('ui.render')
+      await refreshStatus($)
+      await $.ui.close({ id: PANE }).catch(() => undefined)
+      void openPane($)
+      return {
+        text:
+          choice === 'matrix'
+            ? tr('Bienvenido a la Matrix: el Arquitecto abre el panel.', 'Welcome to the Matrix: the Architect opens the panel.')
+            : tr('Clawd vuelve a abrir el gremio.', 'Clawd opens the guild again.'),
+      }
     }
     const language = /^\s*(?:idioma|language|lang)\b\s*(.*)$/i.exec(e.args)
     if (language) {
@@ -1280,7 +1332,7 @@ export const register: Register = on => {
               : status === 'aborted'
                 ? tr('abandonó la misión', 'left the quest')
                 : tr('volvió herido', 'came back wounded')
-          const icon = status === 'done' ? '💰' : status === 'aborted' ? '🚪' : '🩹'
+          const icon = status === 'done' ? tr('💰', '💰') : status === 'aborted' ? '🚪' : '🩹'
           // Se queda unos segundos en el campo con su botín antes de entrar a la taberna.
           returnRedraws.push(frame + Math.ceil((RETURN_MS + 200) / 400))
           await refreshAgents($)
@@ -1904,7 +1956,7 @@ export const register: Register = on => {
     const turnMs = dm.isBusy && dm.turnStartedAt ? now - dm.turnStartedAt : (dm.lastTurnMs ?? null)
     const turnActs = dm.turnActions ?? 0
     const acts = `${turnActs} ${turnActs === 1 ? tr('acción', 'action') : tr('acciones', 'actions')}`
-    const label = (text: string) => <Text color={GOLD}>{text.padEnd(8)}</Text>
+    const label = (text: string) => <Text color={CLASS_COLOR.maestro}>{text.padEnd(8)}</Text>
     const lifeLine = (
       <Button plain key="vida" onPress={() => update($, lifeOpen, isOpen => !isOpen)}>
         <Text>
@@ -1916,7 +1968,7 @@ export const register: Register = on => {
             <Text>
               <Text color={RED}>{'♥ '.repeat(hearts)}</Text>
               <Text dimColor>{'· '.repeat(10 - hearts)}</Text>
-              <Text bold color={life <= LOW_LIFE ? RED : GOLD}>
+              <Text bold color={life <= LOW_LIFE ? RED : CLASS_COLOR.maestro}>
                 {' '}
                 {Math.round(life)}
               </Text>
@@ -1962,7 +2014,7 @@ export const register: Register = on => {
                 {' '}
                 · {withLoot.length} {tr('con botín', 'with loot')}
               </Text> : null}
-            {unread.length > 0 ? <Text color={GOLD}>
+            {unread.length > 0 ? <Text color={CLASS_COLOR.maestro}>
                 {' '}
                 · {unread.length} {tr('sin leer', 'unread')}
               </Text> : null}
@@ -2006,21 +2058,21 @@ export const register: Register = on => {
         alignItems={isNarrow ? 'center' : 'flex-start'}
         gap={2}
         borderStyle="round"
-        borderColor={GOLD}
+        borderColor={CLASS_COLOR.maestro}
         paddingX={1}
       >
         {sprite('maestro', 'maestro', dm.napping ? 'asleep' : dm.isBusy ? 'busy' : life !== null && life <= LOW_LIFE ? 'tired' : 'idle', isCompact || isNarrow ? 'small' : 'big')}
         <Box flexDirection="column" flexShrink={1}>
           <Box gap={2}>
             <Button plain key="sel-maestro" onPress={() => select('maestro')}>
-              <Text bold color={GOLD}>
+              <Text bold color={CLASS_COLOR.maestro}>
                 {picked === 'maestro' ? '▾ ' : ''}👑 {tr('GRAN MAESTRE', 'GRAND MASTER')}
               </Text>
             </Button>
             {toggles}
           </Box>
           <Text dimColor>
-            Clawd · {dm.model ? modelName(dm.model) : tr('sesión principal', 'main session')}
+            {tr('Clawd', 'Clawd')} · {dm.model ? modelName(dm.model) : tr('sesión principal', 'main session')}
           </Text>
           <Text>{tr(`«${says}»`, `“${says}”`)}</Text>
           <Box flexDirection="column" marginTop={1}>
@@ -2075,10 +2127,10 @@ export const register: Register = on => {
         <Button plain key={`bolsa-${w.kind}`} onPress={() => togglePurse(w.kind)}>
           <Text>
             <Text dimColor>{openPurse === w.kind ? '▾ ' : '▸ '}</Text>
-            <Text color={GOLD}>{label.padEnd(8)}</Text>
-            {'🪙'.repeat(filled)}
+            <Text color={CLASS_COLOR.maestro}>{label.padEnd(8)}</Text>
+            {tr('🪙', '🪙').repeat(filled)}
             <Text dimColor>{'· '.repeat(coinsPerPurse - filled)}</Text>
-            <Text bold color={left <= 20 ? RED : GOLD}>
+            <Text bold color={left <= 20 ? RED : CLASS_COLOR.maestro}>
               {' '}
               {Math.round(left)}
             </Text>
@@ -2135,13 +2187,13 @@ export const register: Register = on => {
       <Box flexDirection="column">
         <Box gap={2}>
           <Text>
-            💰{' '}
-            <Text bold color={GOLD}>
+            {tr('💰', '💰')}{' '}
+            <Text bold color={CLASS_COLOR.maestro}>
               {tr('Tesoro del gremio', 'Guild treasury')}
             </Text>
           </Text>
           <Button plain key="libro" onPress={() => update($, bookOpen, isOpen => !isOpen)}>
-            <Text color={isBookOpen ? GOLD : undefined}>
+            <Text color={isBookOpen ? CLASS_COLOR.maestro : undefined}>
               {tr('📕 Libro', '📕 Ledger')} {isBookOpen ? '▾' : '▸'}
             </Text>
           </Button>
@@ -2168,10 +2220,10 @@ export const register: Register = on => {
         <Box flexDirection="column">
           <Button plain key="reino" onPress={() => update($, realmOpen, isOpen => !isOpen)}>
             <Text wrap="truncate-end">
-              <Text color={GOLD}>{tr('🏰 Reino', '🏰 Realm')}</Text>
+              <Text color={CLASS_COLOR.maestro}>{tr('🏰 Reino', '🏰 Realm')}</Text>
               <Text dimColor> {isRealmOpen ? '▾' : '▸'} </Text>
               {realmNow.map((r, i) => (
-                <Text color={r.state === 'asking' ? GOLD : undefined} dimColor={r.state === 'idle'}>
+                <Text color={r.state === 'asking' ? CLASS_COLOR.maestro : undefined} dimColor={r.state === 'idle'}>
                   {i > 0 ? ' · ' : ''}
                   {realmSummary(r, now)}
                 </Text>
@@ -2182,7 +2234,7 @@ export const register: Register = on => {
             allRealm.map(r => (
               <Box flexDirection="column">
                 <Button plain key={`reino-${r.key}`} onPress={() => update($, realmPicked, cur => (cur === r.key ? null : r.key))}>
-                  <Text wrap="truncate-end" color={r.state === 'asking' ? GOLD : undefined} dimColor={r.state === 'idle'}>
+                  <Text wrap="truncate-end" color={r.state === 'asking' ? CLASS_COLOR.maestro : undefined} dimColor={r.state === 'idle'}>
                     {'  '}
                     {realmRow(r, now, r.key === me?.key)}
                   </Text>
@@ -2216,7 +2268,7 @@ export const register: Register = on => {
           {bells.map(r => (
             <Button plain key={`ir-sono-${r.key}`} onPress={() => goTo($, r)}>
               <Text wrap="truncate-end">
-                <Text color={GOLD}>
+                <Text color={CLASS_COLOR.maestro}>
                   {r.bell?.icon} {r.label}
                 </Text>
                 <Text>
@@ -2236,7 +2288,7 @@ export const register: Register = on => {
         <Box flexDirection="column">
           {askingNow.map(r => (
             <Button plain key={`ir-pide-${r.key}`} onPress={() => goTo($, r)}>
-              <Text color={GOLD} wrap="truncate-end">
+              <Text color={CLASS_COLOR.maestro} wrap="truncate-end">
                 ❓ {r.label} {r.ask ?? tr('te pide algo', 'needs you')} · {shortSince(now - r.since)}
                 <Text dimColor> · {tr('🚪 ir', '🚪 go')}</Text>
               </Text>
@@ -2251,7 +2303,7 @@ export const register: Register = on => {
       if (shares.length === 0) return null
       return (
         <Text wrap="wrap">
-          <Text color={GOLD}>🪙 {title}: </Text>
+          <Text color={CLASS_COLOR.maestro}>🪙 {title}: </Text>
           {shares.map((p, i) => (
             <Text dimColor={p.project === 'otros'}>
               {i > 0 ? ' · ' : ''}
@@ -2265,8 +2317,8 @@ export const register: Register = on => {
     const bookTotal = ledger.cost + ledger.masterCost + ledger.codeCost
     const shareText = (w: number) => (bookTotal > 0 ? pctText((w / bookTotal) * 100) : '·')
     const ledgerBlock = !isBookOpen ? null : (
-      <Box flexDirection="column" borderStyle="round" borderColor={GOLD} paddingX={1}>
-        <Text bold color={GOLD}>
+      <Box flexDirection="column" borderStyle="round" borderColor={CLASS_COLOR.maestro} paddingX={1}>
+        <Text bold color={CLASS_COLOR.maestro}>
           {tr('📕 Libro del gremio', '📕 Guild ledger')} <Text dimColor>{tr('(todas las sesiones)', '(all sessions)')}</Text>
         </Text>
         <Text dimColor>
@@ -2279,7 +2331,7 @@ export const register: Register = on => {
         </Text>
         {projectLine(tr('Hoy', 'Today'), [dayOf(now)])}
         {projectLine(tr('Semana', 'Week'), lastDays(now, 7))}
-        <Text bold color={GOLD}>
+        <Text bold color={CLASS_COLOR.maestro}>
           {tr('Clase', 'Class').padEnd(11)}
           {tr('Misiones', 'Quests').padStart(9)}
           {tr('Botín', 'Loot').padStart(8)}
@@ -2342,7 +2394,7 @@ export const register: Register = on => {
     )
 
     const fieldTitle = (
-      <Text color={GOLD}>
+      <Text color={CLASS_COLOR.maestro}>
         {tr('🧭 En misión', '🧭 On quest')} <Text dimColor>· {running}</Text>
       </Text>
     )
@@ -2417,7 +2469,7 @@ export const register: Register = on => {
     const tavern =
       resting.length === 0 ? null : (
         <Box flexDirection="column">
-          <Text color={GOLD}>
+          <Text color={CLASS_COLOR.maestro}>
             {tr('🍺 Taberna', '🍺 Tavern')} <Text dimColor>· {resting.length}</Text>
           </Text>
           <Box flexDirection="row" flexWrap="wrap">
@@ -2454,8 +2506,8 @@ export const register: Register = on => {
     )
     if (picked === 'maestro') {
       card = (
-        <Box flexDirection="column" borderStyle="round" borderColor={GOLD} paddingX={1}>
-          <Text bold color={GOLD}>
+        <Box flexDirection="column" borderStyle="round" borderColor={CLASS_COLOR.maestro} paddingX={1}>
+          <Text bold color={CLASS_COLOR.maestro}>
             👑 {tr('Gran Maestre', 'Grand Master')} · {dm.isBusy ? tr('trabajando', 'working') : tr('en reposo', 'resting')}
           </Text>
           <Text dimColor>
@@ -2525,17 +2577,17 @@ export const register: Register = on => {
                 {doingOf(hero)}
               </Text>
             ) : (
-              <Text>💰 {cut(hero.report, isMore ? 600 : 160)}</Text>
+              <Text>{tr('💰', '💰')} {cut(hero.report, isMore ? 600 : 160)}</Text>
             )}
             <Text dimColor>
               ⏳ {duration(roundMs(hero))}
             {hero.actionCount > 0 ? ` · ${hero.actionCount} ${hero.actionCount === 1 ? tr('acción', 'action') : tr('acciones', 'actions')}` : ''}
-              {share !== null ? ` · 🪙 ${coinText(share)}` : ''}
+              {share !== null ? tr(` · 🪙 ${coinText(share)}`, ` · 🪙 ${coinText(share)}`) : ''}
             </Text>
             {isMore && (
               <Box flexDirection="column" marginTop={1}>
                 <Text dimColor>
-                  {CLASS_LEVEL[hero.cls]} · {tr('enviado por', 'sent by')} {parent ? parent.name : 'Clawd'} · {hero.kind}
+                  {CLASS_LEVEL[hero.cls]} · {tr('enviado por', 'sent by')} {parent ? parent.name : tr('Clawd', 'Clawd')} · {hero.kind}
                   {hero.isBackground ? tr(' · en segundo plano', ' · in the background') : ''}
                 </Text>
                 <Text dimColor>
@@ -2651,7 +2703,7 @@ export const register: Register = on => {
       events.length === 0 ? null : (
         <Box flexDirection="column">
           <Button plain key="cronica" onPress={() => update($, chronicleOpen, isOpen => !isOpen)}>
-            <Text color={GOLD}>
+            <Text color={CLASS_COLOR.maestro}>
               {tr('📖 Crónica', '📖 Chronicle')} <Text dimColor>{isChronicleOpen ? '▾' : '▸'}</Text>
             </Text>
           </Button>
@@ -2688,6 +2740,7 @@ export const register: Register = on => {
         )}
         {askBanner}
         {bellBanner}
+        {theme() === 'matrix' && <Text color="#008f11">{rain(Math.min(cols, 60), frame)}</Text>}
         {masterBlock}
         {quotaBlock}
         {ledgerBlock}

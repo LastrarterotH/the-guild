@@ -1,10 +1,12 @@
-// Pixel art de Clawd y sus aventureros. Cada celda de la terminal guarda 2x2
+// Pixel art de Clawd y sus aventureros (los de la Matrix, en sprites-matrix.ts). Cada celda de la terminal guarda 2x2
 // píxeles con los caracteres de cuadrante (▘▝▀▖...), igual que el Clawd del
 // arranque. El relleno va como color de fondo para que el interlineado de la
 // terminal no deje rayas.
 
 import type { GremioClass } from '../types'
 import { tr } from './i18n'
+import { matrixGrid } from './sprites-matrix'
+import { theme } from './tema'
 
 export type Pose = 'quieto' | 'marcha' | 'parpadeo' | 'caido' | 'cansado' | 'durmiendo'
 export type Size = 'big' | 'small' | 'mini'
@@ -164,13 +166,29 @@ const OUTFIT: Record<GremioClass, { small: readonly string[]; big: readonly stri
   },
 }
 
-/** Color de cada clase para los textos del panel. */
+// En la Matrix todo tira a fósforo verde, con un color propio por programa.
+const COLOR: Record<'guild' | 'matrix', Record<GremioClass, string>> = {
+  guild: { maestro: '#f4c542', archimago: '#b47cff', mago: '#5b9bff', bardo: '#3ddc97', picaro: '#c9ccd6' },
+  matrix: { maestro: '#00ff41', archimago: '#e8e8f0', mago: '#f4a261', bardo: '#8fe3a0', picaro: '#ff4d4d' },
+}
+
+/** Color de cada clase para los textos del panel (según el tema). */
 export const CLASS_COLOR: Record<GremioClass, string> = {
-  maestro: '#f4c542',
-  archimago: '#b47cff',
-  mago: '#5b9bff',
-  bardo: '#3ddc97',
-  picaro: '#c9ccd6',
+  get maestro() {
+    return COLOR[theme()].maestro
+  },
+  get archimago() {
+    return COLOR[theme()].archimago
+  },
+  get mago() {
+    return COLOR[theme()].mago
+  },
+  get bardo() {
+    return COLOR[theme()].bardo
+  },
+  get picaro() {
+    return COLOR[theme()].picaro
+  },
 }
 
 export const CLASS_LABEL: Record<GremioClass, string> = {
@@ -209,22 +227,22 @@ export const CLASS_PLURAL: Record<GremioClass, string> = {
   },
 }
 
-/** Nivel de D&D de cada clase, para la ficha. */
+/** Nivel de D&D de cada clase, para la ficha (en la Matrix, la versión del programa). */
 export const CLASS_LEVEL: Record<GremioClass, string> = {
   get maestro() {
-    return tr('DM', 'DM')
+    return theme() === 'matrix' ? tr('fuente', 'source') : tr('DM', 'DM')
   },
   get archimago() {
-    return tr('Nv. 20', 'Lv. 20')
+    return theme() === 'matrix' ? 'v6.0' : tr('Nv. 20', 'Lv. 20')
   },
   get mago() {
-    return tr('Nv. 15', 'Lv. 15')
+    return theme() === 'matrix' ? 'v2.0' : tr('Nv. 15', 'Lv. 15')
   },
   get bardo() {
-    return tr('Nv. 10', 'Lv. 10')
+    return theme() === 'matrix' ? 'v1.0' : tr('Nv. 10', 'Lv. 10')
   },
   get picaro() {
-    return tr('Nv. 5', 'Lv. 5')
+    return theme() === 'matrix' ? 'v0.9' : tr('Nv. 5', 'Lv. 5')
   },
 }
 
@@ -458,6 +476,7 @@ const cache = new Map<string, string>()
 
 /** La grilla de píxeles de un sprite (sin pasar a celdas). */
 export function spriteGrid(cls: GremioClass, pose: Pose, frame: number, size: Size): Grid {
+  if (theme() === 'matrix') return matrixGrid(cls, pose, frame, size)
   return size === 'mini' ? mini(cls, pose, frame) : size === 'big' ? big(cls, pose, frame) : small(cls, pose, frame)
 }
 
@@ -477,7 +496,7 @@ function fade(c: number): number {
 
 /** Las celdas de un sprite, guardadas para no recalcularlas en cada cuadro; `faded`, desteñido (en reposo). */
 export function spriteCells(cls: GremioClass, pose: Pose, frame: number, size: Size, faded = false): string {
-  const id = `${cls}|${pose}|${frame % 2}|${size}|${faded ? 'f' : ''}`
+  const id = `${theme()}|${cls}|${pose}|${frame % 2}|${size}|${faded ? 'f' : ''}`
   const hit = cache.get(id)
   if (hit) return hit
   const g = spriteGrid(cls, pose, frame, size)

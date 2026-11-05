@@ -1,13 +1,21 @@
 // Pinta los sprites del gremio tal como los dibuja la terminal (celdas 1:2,
 // cuadrantes, dos colores por celda) y los guarda como PNG para revisarlos.
-// Uso: node tools/ver-sprites.mjs [ruta/a/sprites.ts] [salida.png] [escala]
+// Uso: [GUILD_THEME=matrix] node tools/ver-sprites.mjs [ruta/a/sprites.ts] [salida.png] [escala]
 import { execFileSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { register } from 'node:module'
+
+register('./resolver-ts.mjs', import.meta.url)
 
 const [, , spritesArg = 'hooks/sprites.ts', outArg = '.vista/sprites.png', scaleArg = '2'] = process.argv
 const { spriteCells, CELLS } = await import(pathToFileURL(resolve(spritesArg)).href)
+// GUILD_THEME=matrix pinta los del tema Matrix.
+if (process.env.GUILD_THEME) {
+  const { setTheme } = await import(pathToFileURL(resolve(spritesArg, '..', 'tema.ts')).href)
+  setTheme(process.env.GUILD_THEME)
+}
 const QUAD = [' ', '▘', '▝', '▀', '▖', '▌', '▞', '▛', '▗', '▚', '▐', '▜', '▄', '▙', '▟', '█']
 const K = Number(scaleArg)
 const CW = 8 * K

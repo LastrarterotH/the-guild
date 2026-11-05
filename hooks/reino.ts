@@ -148,8 +148,8 @@ export function realmRow(e: GremioRealmEntry, now: number, isOwn: boolean): stri
     `${REALM_ICON[e.state]} ${name}`,
     shortSince(now - e.since).padStart(6),
     e.life !== null ? `♥ ${Math.round(e.life)}`.padEnd(5) : '     ',
-    typeof e.coins === 'number' ? `🪙 ${Math.round(e.coins)}`.padEnd(5) : '     ',
-    e.running > 0 ? `🧭 ${e.running}` : (e.unread ?? 0) > 0 ? `💰 ${e.unread}` : '',
+    typeof e.coins === 'number' ? tr(`🪙 ${Math.round(e.coins)}`, `🪙 ${Math.round(e.coins)}`).padEnd(5) : '     ',
+    e.running > 0 ? tr(`🧭 ${e.running}`, `🧭 ${e.running}`) : (e.unread ?? 0) > 0 ? tr(`💰 ${e.unread}`, `💰 ${e.unread}`) : '',
   ]
   return parts.join('  ').trimEnd()
 }

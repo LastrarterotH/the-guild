@@ -7,6 +7,13 @@
 //   bardo      laúd punteado: tri-ri-rin
 //   picaro     moneda: tic-TIN
 //   caido      trompeta triste: wah-wah-wah-waaah (cualquiera que falle)
+// Y en sounds/matrix/, los del tema Matrix (mismos nombres):
+//   maestro    el teléfono que suena, suave (el Arquitecto terminó)
+//   archimago  el tiempo bala: un barrido que sube y un destello (Neo)
+//   mago       la cucharita contra la taza (el Oráculo)
+//   bardo      el auricular: dos pitidos digitales (el Agente)
+//   picaro     el zumbido mecánico grave (el Centinela)
+//   caido      estática y un tono que cae (falla)
 
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -191,6 +198,102 @@ const sounds = {
   },
 }
 
+// Ruido blanco con envolvente.
+function noise(dur, amp = 0.3, decay = 6) {
+  const n = Math.round(dur * SR)
+  const s = new Float32Array(n)
+  let seed = 11
+  for (let i = 0; i < n; i++) {
+    seed = (seed * 16807) % 2147483647
+    const t = i / SR
+    s[i] = ((seed / 2147483647) * 2 - 1) * amp * Math.exp(-t * decay)
+  }
+  return s
+}
+
+// Seno con barrido de frecuencia (de `from` a `to`).
+function sweep(from, to, dur, amp = 0.4) {
+  const n = Math.round(dur * SR)
+  const s = new Float32Array(n)
+  let phase = 0
+  for (let i = 0; i < n; i++) {
+    const t = i / SR
+    const f = from * (to / from) ** (t / dur)
+    phase += f / SR
+    const env = Math.min(1, t / 0.02) * Math.min(1, (dur - t) / 0.08)
+    s[i] = (Math.sin(2 * Math.PI * phase) + 0.3 * Math.sin(4 * Math.PI * phase)) * env * amp
+  }
+  return s
+}
+
+// Timbre de teléfono: dos senos cercanos, temblando a 20 Hz.
+function ring(dur, amp = 0.35) {
+  const n = Math.round(dur * SR)
+  const s = new Float32Array(n)
+  for (let i = 0; i < n; i++) {
+    const t = i / SR
+    const trem = 0.55 + 0.45 * Math.sin(2 * Math.PI * 20 * t)
+    const env = Math.min(1, t / 0.03) * Math.min(1, (dur - t) / 0.1)
+    s[i] = (Math.sin(2 * Math.PI * 440 * t) + Math.sin(2 * Math.PI * 480 * t)) * 0.5 * trem * env * amp
+  }
+  return s
+}
+
+// Sierra grave con un poco de ruido: una máquina que ronronea.
+function thrum(freq, dur, amp = 0.4) {
+  const n = Math.round(dur * SR)
+  const s = new Float32Array(n)
+  let seed = 5
+  for (let i = 0; i < n; i++) {
+    seed = (seed * 16807) % 2147483647
+    const t = i / SR
+    const saw = 2 * ((t * freq) % 1) - 1
+    const env = Math.min(1, t / 0.05) * Math.exp(-t * 2.5)
+    s[i] = (saw * 0.7 + ((seed / 2147483647) * 2 - 1) * 0.3) * env * amp
+  }
+  return s
+}
+
+const matrix = {
+  maestro() {
+    const b = track(1.2)
+    add(b, 0.0, ring(0.45, 0.3))
+    add(b, 0.6, ring(0.45, 0.22))
+    return b
+  },
+  archimago() {
+    const b = track(1.4)
+    add(b, 0.0, sweep(160, 1400, 0.7, 0.35))
+    add(b, 0.62, bell(hz('E7'), 0.8, 0.25))
+    add(b, 0.62, bell(hz('B6'), 0.7, 0.18))
+    return b
+  },
+  mago() {
+    const b = track(1.0)
+    add(b, 0.0, bell(hz('E6'), 0.5, 0.4))
+    add(b, 0.18, bell(hz('G6'), 0.8, 0.38))
+    return b
+  },
+  bardo() {
+    const b = track(0.5)
+    add(b, 0.0, square(1760, 0.06, 0.18))
+    add(b, 0.12, square(2349, 0.06, 0.18))
+    return b
+  },
+  picaro() {
+    const b = track(0.8)
+    add(b, 0.0, thrum(62, 0.75, 0.5))
+    add(b, 0.0, noise(0.12, 0.2, 25))
+    return b
+  },
+  caido() {
+    const b = track(1.1)
+    for (let i = 0; i < 6; i++) add(b, i * 0.09, noise(0.05, 0.35, 40))
+    add(b, 0.2, sweep(600, 90, 0.8, 0.3))
+    return b
+  },
+}
+
 function wav(samples) {
   let peak = 0
   for (const v of samples) peak = Math.max(peak, Math.abs(v))
@@ -213,9 +316,11 @@ function wav(samples) {
   return Buffer.concat([head, data])
 }
 
-mkdirSync(OUT, { recursive: true })
-for (const [name, make] of Object.entries(sounds)) {
-  const file = join(OUT, `${name}.wav`)
-  writeFileSync(file, wav(make()))
-  console.log(file)
+for (const [dir, set] of [[OUT, sounds], [join(OUT, 'matrix'), matrix]]) {
+  mkdirSync(dir, { recursive: true })
+  for (const [name, make] of Object.entries(set)) {
+    const file = join(dir, `${name}.wav`)
+    writeFileSync(file, wav(make()))
+    console.log(file)
+  }
 }

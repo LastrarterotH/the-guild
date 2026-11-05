@@ -1,6 +1,8 @@
 // El gremio habla español e inglés. Todo texto que lee una persona o el modelo
-// pasa por tr(es, en). El idioma se elige una vez por sesión (langFrom) y se
+// pasa por tr(es, en), que además lo recuenta en el tema elegido (hooks/tema.ts). El idioma se elige una vez por sesión (langFrom) y se
 // cambia con `/guild language`.
+
+import { recast } from './tema'
 
 export type Lang = 'es' | 'en'
 
@@ -19,7 +21,7 @@ export function setLang(next: Lang): void {
 
 /** El texto en el idioma actual: tr('Gremio abierto.', 'Guild opened.'). */
 export function tr(es: string, en: string): string {
-  return current === 'en' ? en : es
+  return recast(current === 'en' ? en : es, current)
 }
 
 /** Si un nombre de idioma o un locale es español («Español», "Spanish", "es-CL", "es_ES.UTF-8"). */
