@@ -258,12 +258,12 @@ export function rainCells(columns: number, rows: number, frame: number): string 
   for (let y = 0; y < rows; y++)
     for (let x = 0; x < columns; x++) {
       const seed = (Math.imul(x + 1, 2654435761) >>> 0) % 1000
-      const speed = 1 + (seed % 3) // cuadros por fila: 1 rápida, 3 lenta
+      const speed = 2 + (seed % 3) // cuadros por fila: 2 rápida, 4 lenta
       const length = 3 + (seed % 5)
-      const period = rows + length + 4 + (seed % 9)
+      const period = rows + length + 6 + (seed % 12)
       const head = Math.floor((frame + seed * 7) / speed) % period
       const dist = head - y
-      const glyph = RAIN[((x * 31 + y * 7 + Math.floor(frame / (2 + (seed % 3)))) * 13 + seed) % RAIN.length] ?? ' '
+      const glyph = RAIN[((x * 31 + y * 7 + Math.floor(frame / (4 + (seed % 4)))) * 13 + seed) % RAIN.length] ?? ' '
       if (dist < 0 || dist >= length) cells.push({ ch: ' ', fg: DEFAULT_COLOR, bg: DEFAULT_COLOR })
       else cells.push({ ch: glyph, fg: DROP[Math.min(DROP.length - 1, Math.floor((dist / length) * DROP.length))] ?? 0x00ff41, bg: DEFAULT_COLOR })
     }

@@ -233,7 +233,32 @@ let turnPercents: number[] = []
 let warnedHighWeek: string | null = null
 // La lluvia de la Matrix: su ancho en celdas (0 si no se dibuja) y sus filas.
 let rainCols = 0
-const RAIN_ROWS = 2
+const RAIN_ROWS = 5
+// Su propio cuadro: cae aunque no haya sprites que animar (con retratos no los hay).
+let rainFrame = 0
+
+// El reloj de la lluvia: corre solo con el panel abierto en tema Matrix.
+let rainClock: { cancel(): void } | null = null
+
+/** Un cuadro de la lluvia digital: cae todo el rato mientras el panel esté abierto. */
+function rainTick($: EngineInterface): void {
+  if (!isPaneUp || rainCols === 0 || theme() !== 'matrix') {
+    stopRain()
+    return
+  }
+  rainFrame += 1
+  void $.ui.blit({ requestId: PANE, key: 'lluvia', cells: rainCells(rainCols, RAIN_ROWS, rainFrame) }).catch(() => undefined)
+}
+
+function startRain($: EngineInterface): void {
+  if (rainClock || theme() !== 'matrix') return
+  rainClock = $.clock.every(120, () => rainTick($))
+}
+
+function stopRain(): void {
+  rainClock?.cancel()
+  rainClock = null
+}
 // Otras sesiones a las que esta les escribió hace poco (para la Red).
 let talking: Array<{ to: string; at: number }> = []
 
@@ -251,7 +276,6 @@ function tick($: EngineInterface): void {
     $.ui.invalidate('ui.render')
   }
   if (frame % 150 === 0) void closeDay($).catch(() => undefined)
-  if (rainCols > 0 && theme() === 'matrix') void $.ui.blit({ requestId: PANE, key: 'lluvia', cells: rainCells(rainCols, RAIN_ROWS, frame) }).catch(() => undefined)
   for (const [key, d] of drawn) {
     let pose: Pose | null = null
     if (d.state === 'busy') pose = 'marcha'
@@ -1994,6 +2018,7 @@ export const register: Register = on => {
     const nextDrawn = new Map<string, Drawn>()
     const cols = Math.max(20, e.props.bodyColumns)
     rainCols = theme() === 'matrix' ? Math.max(10, Math.min(cols, 72)) : 0
+    if (rainCols > 0) startRain($)
     const isCompact = e.props.placement === 'inline'
     const isNarrow = cols < 44
     const viewing = e.props.view.agentId
@@ -2899,7 +2924,7 @@ export const register: Register = on => {
         )}
         {askBanner}
         {bellBanner}
-        {theme() === 'matrix' && <Raster key="lluvia" columns={rainCols} rows={RAIN_ROWS} cells={rainCells(rainCols, RAIN_ROWS, frame)} />}
+        {theme() === 'matrix' && <Raster key="lluvia" columns={rainCols} rows={RAIN_ROWS} cells={rainCells(rainCols, RAIN_ROWS, rainFrame)} />}
         {masterBlock}
         {quotaBlock}
         {ledgerBlock}
