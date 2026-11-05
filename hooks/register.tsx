@@ -2225,7 +2225,7 @@ export const register: Register = on => {
       <Box flexDirection="column">
         <Box gap={2}>
           <Text>
-            {tr('💰', '💰')}{' '}
+            {theme() === 'matrix' ? '🔋' : '💰'}{' '}
             <Text bold color={CLASS_COLOR.maestro}>
               {tr('Tesoro del gremio', 'Guild treasury')}
             </Text>
