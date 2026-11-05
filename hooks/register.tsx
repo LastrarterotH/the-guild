@@ -21,31 +21,34 @@ import type {
   GremioTask,
   GremioTreasury,
 } from '../types'
-import { absorb, coinText, EMPTY_QUOTA, forecast, isShiftPlan, kindLabel, pctText, primary, ratePerHour, sessionPrimary, span } from './cuota'
+import { absorb, chargeBar, coinText, EMPTY_QUOTA, forecast, HIGH_WEEK, isShiftPlan, isWeekHigh, kindLabel, leftColor, pctText, primary, ratePerHour, sessionPrimary, span, whenText } from './cuota'
 import type { Limit } from './cuota'
 import { epithet } from './apodos'
 import { absorbQuota, addProjectSpend, projectShares, windowKey } from './libro'
 import {
-  TALK_MS,
-  REALM_FORGET_MS,
-  REALM_FRESH_MS,
-  TTY_SCRIPT,
   cleanLabel,
   cleanTtys,
-  focusScript,
-  notifyScript,
   coinsOf,
   firstUserTexts,
-  lastTitle,
-  markScript,
+  focusScript,
+  ghosttyFocusScript,
+  isGhostty,
   labelFromCwd,
   labelFromPrompt,
+  lastTitle,
+  markScript,
+  notifyScript,
   others as otherSessions,
+  REALM_FORGET_MS,
+  REALM_FRESH_MS,
   realmDetail,
   realmRow,
   realmSummary,
   shortSince,
   stateOf,
+  TALK_MS,
+  titleCommand,
+  TTY_SCRIPT,
 } from './reino'
 import { ago, classOf, cut, describeTool, duration, firstSentence, modelName, tokens } from './describe'
 import { aliasOf, brief, classOfAlias, doctrineText, effortFor, isFable, plan, planFor, raise, setsLength } from './doctrine'
@@ -217,6 +220,14 @@ let isPaneUp = false
 // terminal dibuja imágenes (Ghostty, kitty, iTerm2, WezTerm); si no, pixel art.
 let pluginRoot = ''
 let hasPictures = false
+// La terminal que corre esta sesión (TERM_PROGRAM), para marcar su pestaña y para que otras lleguen a ella.
+let termProgram: string | null = null
+// La sesión heredó la marca de sesión hija: Claude Code no guarda la conversación.
+let isUnsaved = false
+// El contexto usado (%) al final de cada turno, para pronosticar la siesta.
+let turnPercents: number[] = []
+// La semana alta ya se avisó en esta ventana.
+let warnedHighWeek: string | null = null
 // La lluvia de la Matrix: su ancho en celdas (0 si no se dibuja) y sus filas.
 let rainCols = 0
 const RAIN_ROWS = 2
@@ -273,6 +284,7 @@ function statusText(life: number | null, purse: number | null, running: number, 
     running > 0 ? tr(`🧭 ${running}`, `🧭 ${running}`) : null,
     isCode ? null : tr('📜✗ sin Código', '📜✗ no Code'),
     asking.length > 0 ? `❓ ${asking.join(', ')}` : null,
+    isUnsaved ? tr('⚠️ sin guardar', '⚠️ unsaved') : null,
   ].filter((p): p is string => p !== null)
   return parts.length > 0 ? parts.join(' · ') : undefined
 }
@@ -285,7 +297,8 @@ async function refreshStatus($: EngineInterface): Promise<void> {
   const main = primary(q.windows)
   const nowMs = await $.clock.now()
   const asking = otherSessions(kingdom, sessionKey ?? '', nowMs).filter(k => k.state === 'asking').map(k => k.label)
-  $.ui.status(statusText(life, main ? Math.max(0, 100 - main.percent) : null, running, isCode, asking))
+  const text = statusText(life, main ? Math.max(0, 100 - main.percent) : null, running, isCode, asking)
+  $.ui.status(text && isWeekHigh(q.windows) ? `${text} ⛔` : text)
   await beat($)
 }
 
@@ -366,6 +379,9 @@ async function ownEntry($: EngineInterface): Promise<GremioRealmEntry | null> {
     ttys: sessionTtys,
     bell: lastBell,
     talking: talking.filter(t => now - t.at < TALK_MS),
+    doing: dm.isBusy && !isIdle(dm.doing) ? cut(dm.doing, 48) : null,
+    program: termProgram,
+    unsaved: isUnsaved || undefined,
   }
 }
 
@@ -389,7 +405,8 @@ async function beat($: EngineInterface, force = false): Promise<void> {
 /** Trae al frente la pestaña de Terminal de otra sesión. */
 async function goTo($: EngineInterface, entry: GremioRealmEntry): Promise<void> {
   try {
-    const r = await $.process.run(['osascript', '-e', focusScript(entry.ttys ?? [], entry.label)], { timeoutMs: 5000 })
+    const script = isGhostty(entry.program) ? ghosttyFocusScript(entry.label) : focusScript(entry.ttys ?? [], entry.label)
+    const r = await $.process.run(['osascript', '-e', script], { timeoutMs: 8000 })
     if (r.stdout.trim() !== 'ok') $.ui.toast(tr(`No encontré la pestaña de ${entry.label} en Terminal`, `Couldn't find the tab for ${entry.label} in Terminal`))
   } catch {
     $.ui.toast(tr('No pude pedirle a Terminal que cambie de pestaña', "Couldn't ask Terminal to switch tabs"))
@@ -523,7 +540,10 @@ async function ring($: EngineInterface, icon: string, text: string, isMain: bool
     await beat($, true)
     if (!isMain) return
     const name = (await read($, label)) || null
-    if (name) await $.process.run(['osascript', '-e', markScript(name, icon)], { timeoutMs: 5000 })
+    if (name && isGhostty(termProgram)) {
+      const tty = sessionTtys[0]
+      if (tty) await $.process.run(titleCommand(tty, `${icon} ${name}`), { timeoutMs: 3000 })
+    } else if (name) await $.process.run(['osascript', '-e', markScript(name, icon)], { timeoutMs: 5000 })
     if (turnMs >= 20_000) await $.process.run(['osascript', '-e', notifyScript(`${tr('Gremio', 'Guild')} · ${name ?? tr('sesión', 'session')}`, text)], { timeoutMs: 5000 })
   } catch {
     // Sin marca ni aviso; el sonido ya sonó.
@@ -1001,7 +1021,11 @@ export const register: Register = on => {
     try {
       const program = (await $.env.get('TERM_PROGRAM')) ?? ''
       const term = (await $.env.get('TERM')) ?? ''
+      termProgram = program || null
       hasPictures = /ghostty|iTerm|WezTerm/i.test(program) || /kitty|ghostty/i.test(term)
+      const child = await $.env.get('CLAUDE_CODE_CHILD_SESSION')
+      const forced = await $.env.get('CLAUDE_CODE_FORCE_SESSION_PERSISTENCE')
+      isUnsaved = Boolean(child) && !forced
     } catch {
       hasPictures = false
     }
@@ -1308,6 +1332,8 @@ export const register: Register = on => {
           lastTurnEndAt: at,
         }))
         permissionAt = null
+        const pct = (await read($, master)).context?.percent ?? null
+        if (pct !== null) turnPercents = [...turnPercents, pct].slice(-8)
         await beat($, true)
         // Melodía si terminó bien; trompeta triste si falló; nada si lo interrumpiste.
         if (e.reason === 'answer') await chime($, 'maestro')
@@ -1443,6 +1469,8 @@ export const register: Register = on => {
         }
       }
       if (!e.fork) {
+        const q = await read($, quota)
+        const isHigh = isWeekHigh(q.windows)
         if (e.model === undefined) {
           // La experiencia: si a esta clase le va mal en este tipo de misión, sube una.
           const from = classOfAlias(p.alias)
@@ -1453,6 +1481,15 @@ export const register: Register = on => {
               `${CLASS_PLURAL[from]} ${up.why}: the Code sent ${aOrAn(CLASS_LABEL[up.cls])}`,
             )
             p = raise(p, up.cls)
+          }
+          // Semana sobre el 95 %: solo lo barato (Haiku o Sonnet), aunque la tarea pida más.
+          if (isHigh && p.alias === 'opus') {
+            p = { ...p, alias: 'sonnet', effort: 'medium', words: 500, why: tr(`semana sobre el ${HIGH_WEEK} %: solo lo barato`, `week over ${HIGH_WEEK} %: only the cheap ones`) }
+            const week = q.windows.find(w => w.kind === 'seven_day')
+            if (week?.resetsAt && warnedHighWeek !== week.resetsAt) {
+              warnedHighWeek = week.resetsAt
+              await note($, tr(`⛔ La semana pasó del ${HIGH_WEEK} %: el Código manda solo ${CLASS_PLURAL.picaro} y ${CLASS_PLURAL.bardo}`, `⛔ The week passed ${HIGH_WEEK} %: the Code sends only ${CLASS_PLURAL.picaro} and ${CLASS_PLURAL.bardo}`))
+            }
           }
           input = { ...input, model: p.alias }
           choice = up
@@ -1641,7 +1678,14 @@ export const register: Register = on => {
     const composed = await next(e)
     try {
       if (await read($, doctrine)) {
-        return { sections: [...composed.sections, { id: 'guild:code', text: doctrineText(), scope: 'session' as const }] }
+        const high = isWeekHigh((await read($, quota)).windows)
+        const extra = high
+          ? tr(
+              `\n\nLa semana del plan pasó del ${HIGH_WEEK} %: hasta que se recargue, envía solo haiku o sonnet (nada de opus ni fable) y evita trabajo pesado que no sea urgente.`,
+              `\n\nThe plan's week passed ${HIGH_WEEK} %: until it refills, send only haiku or sonnet (no opus or fable) and avoid heavy work that is not urgent.`,
+            )
+          : ''
+        return { sections: [...composed.sections, { id: 'guild:code', text: doctrineText() + extra, scope: 'session' as const }] }
       }
     } catch {
       // Sin Código, el prompt queda como estaba.
@@ -1999,6 +2043,9 @@ export const register: Register = on => {
     const ctx = dm.context ?? null
     const life = ctx && ctx.percent !== null ? Math.max(0, 100 - ctx.percent) : null
     const hearts = life === null ? 0 : life > 0 ? Math.max(1, Math.round(life / 10)) : 0
+    // Cuánto contexto se va por turno (promedio de los últimos) y en cuántos turnos llega la siesta.
+    const perTurn = turnPercents.length >= 2 ? Math.max(0, ((turnPercents.at(-1) ?? 0) - (turnPercents[0] ?? 0)) / (turnPercents.length - 1)) : 0
+    const napIn = life !== null && perTurn >= 0.5 ? Math.max(0, Math.ceil(life / perTurn)) : null
     const turnMs = dm.isBusy && dm.turnStartedAt ? now - dm.turnStartedAt : (dm.lastTurnMs ?? null)
     const turnActs = dm.turnActions ?? 0
     const acts = `${turnActs} ${turnActs === 1 ? tr('acción', 'action') : tr('acciones', 'actions')}`
@@ -2018,6 +2065,9 @@ export const register: Register = on => {
                 {' '}
                 {Math.round(life)}
               </Text>
+              {napIn !== null && napIn <= 5 ? (
+                <Text color={RED}>{tr(`  siesta en ~${napIn} ${napIn === 1 ? 'turno' : 'turnos'}`, `  nap in ~${napIn} ${napIn === 1 ? 'turn' : 'turns'}`)}</Text>
+              ) : null}
             </Text>
           )}
         </Text>
@@ -2031,6 +2081,9 @@ export const register: Register = on => {
               ? tr(`Contexto: ${tokensText(ctx.tokens)} de ${tokensText(ctx.window)} tokens`, `Context: ${tokensText(ctx.tokens)} of ${tokensText(ctx.window)} tokens`)
               : tr(`Contexto de ${tokensText(ctx.window)} tokens`, `Context of ${tokensText(ctx.window)} tokens`)}
           </Text>
+          {napIn !== null ? (
+            <Text dimColor>{tr(`A este ritmo (${perTurn.toFixed(1)} % por turno), siesta en ~${napIn} ${napIn === 1 ? 'turno' : 'turnos'}`, `At this pace (${perTurn.toFixed(1)} % per turn), nap in ~${napIn} ${napIn === 1 ? 'turn' : 'turns'}`)}</Text>
+          ) : null}
           <Text dimColor>{tr('Cada ♥ es el 10 % · al vaciarse, la conversación se resume para seguir', 'Each ♥ is 10 % · when empty, the conversation is summarized to go on')}</Text>
         </Box>
       ) : null
@@ -2162,9 +2215,11 @@ export const register: Register = on => {
     const refill = (w: { resetsAt: string | null }) => (w.resetsAt ? span(Date.parse(w.resetsAt) - now) : null)
     const togglePurse = (kind: string) => update($, purseOpen, cur => (cur === kind ? null : kind))
 
+    // Una barra de carga por ventana: lo que queda en verde (ámbar bajo 50, rojo bajo 20), el %, y
+    // cuándo se acaba a este ritmo (si no alcanza) o cuándo se recarga.
+    const barWidth = coinsPerPurse * 2
     const purseLine = (w: { kind: string; percent: number; resetsAt: string | null }, label: string) => {
       const left = Math.max(0, 100 - w.percent)
-      const filled = left > 0 ? Math.max(1, Math.round(left / (100 / coinsPerPurse))) : 0
       const when = refill(w)
       const isWarn = w.kind === mainWindow?.kind && isShort
       return (
@@ -2172,14 +2227,13 @@ export const register: Register = on => {
           <Text>
             <Text dimColor>{openPurse === w.kind ? '▾ ' : '▸ '}</Text>
             <Text color={CLASS_COLOR.maestro}>{label.padEnd(8)}</Text>
-            {tr('🪙', '🪙').repeat(filled)}
-            <Text dimColor>{'· '.repeat(coinsPerPurse - filled)}</Text>
+            <Text color={leftColor(left)}>{chargeBar(left, barWidth)}</Text>
             <Text bold color={left <= 20 ? RED : CLASS_COLOR.maestro}>
               {' '}
-              {Math.round(left)}
+              {Math.round(left)} %
             </Text>
             {isWarn && fc ? (
-              <Text color={RED}>{tr(`  se acaba en ${span(fc.msToFull)}`, `  runs out in ${span(fc.msToFull)}`)}</Text>
+              <Text color={RED}>{tr(`  se acaba ${whenText(now + fc.msToFull, now)}`, `  runs out ${whenText(now + fc.msToFull, now)}`)}</Text>
             ) : isRoomy && when ? (
               <Text dimColor>{`  ↻ ${when}`}</Text>
             ) : null}
@@ -2187,6 +2241,19 @@ export const register: Register = on => {
         </Button>
       )
     }
+    const isHighWeek = isWeekHigh(plan5.windows)
+    const highLine = isHighWeek ? (
+      <Text color={RED}>
+        {'  '}
+        {tr(`⛔ Semana sobre el ${HIGH_WEEK} %: el Código manda solo ${CLASS_PLURAL.picaro} y ${CLASS_PLURAL.bardo}`, `⛔ Week over ${HIGH_WEEK} %: the Code sends only ${CLASS_PLURAL.picaro} and ${CLASS_PLURAL.bardo}`)}
+      </Text>
+    ) : null
+    // La semana por proyecto: dónde se fue la energía.
+    const weekShares = projectShares(ledger, lastDays(now, 7), 3)
+    const weekByProject =
+      weekShares.length > 0
+        ? weekShares.map(p => `${p.project === 'otros' ? tr('otros', 'others') : p.project} ${Math.round(p.share)} %`).join(' · ')
+        : null
     type Line = string | { good: string } | null
     const detail = (lines: Line[]) => (
       <Box flexDirection="column" marginLeft={4}>
@@ -2213,8 +2280,9 @@ export const register: Register = on => {
                 )
               : null,
             savedPts >= 0.05 ? { good: tr(`El Código te ahorró ≈ ${coinText(savedPts)} frente a mandar ${cheap}`, `The Code saved you ≈ ${coinText(savedPts)} versus sending ${cheap}`) } : null,
-            ...(w.kind === 'seven_day' ? others.map(o => tr(`${kindLabel(o.kind)}: quedan ${Math.round(Math.max(0, 100 - o.percent))}`, `${kindLabel(o.kind)}: ${Math.round(Math.max(0, 100 - o.percent))} left`)) : []),
-            tr('Cada 🪙 son 10 monedas (10 % del plan)', 'Each 🪙 is 10 coins (10 % of the plan)'),
+            w.kind === 'seven_day' && weekByProject ? tr(`Por proyecto: ${weekByProject}`, `By project: ${weekByProject}`) : null,
+            ...(w.kind === 'seven_day' ? others.map(o => tr(`${kindLabel(o.kind)}: quedan ${Math.round(Math.max(0, 100 - o.percent))} %`, `${kindLabel(o.kind)}: ${Math.round(Math.max(0, 100 - o.percent))} % left`)) : []),
+            tr('1 % de la barra = 1 % de tu plan', '1 % of the bar = 1 % of your plan'),
           ])
         : null
     }
@@ -2227,8 +2295,8 @@ export const register: Register = on => {
         ? detail([
             !isRoomy && weekWhen ? tr(`↻ se rellena en ${weekWhen}`, `↻ refills in ${weekWhen}`) : null,
             plan5.sessionWeek > 0 ? tr(`Esta sesión gastó ${coinText(plan5.sessionWeek)}`, `This session spent ${coinText(plan5.sessionWeek)}`) : null,
-            ...others.map(o => tr(`${kindLabel(o.kind)}: quedan ${Math.round(Math.max(0, 100 - o.percent))}`, `${kindLabel(o.kind)}: ${Math.round(Math.max(0, 100 - o.percent))} left`)),
-            tr('Cada 🪙 son 10 monedas (10 % del plan)', 'Each 🪙 is 10 coins (10 % of the plan)'),
+            weekByProject ? tr(`Por proyecto: ${weekByProject}`, `By project: ${weekByProject}`) : null,
+            ...others.map(o => tr(`${kindLabel(o.kind)}: quedan ${Math.round(Math.max(0, 100 - o.percent))} %`, `${kindLabel(o.kind)}: ${Math.round(Math.max(0, 100 - o.percent))} % left`)),
           ])
         : null
 
@@ -2254,6 +2322,7 @@ export const register: Register = on => {
             {five && purseLine(five, tr('Jornada', 'Shift'))}
             {fiveDetail}
             {week && purseLine(week, tr('Semana', 'Week'))}
+            {highLine}
             {weekDetail}
           </Box>
         )}
@@ -2742,6 +2811,23 @@ export const register: Register = on => {
                 {tr('📋 Copiar botín', '📋 Copy loot')}
               </Button>
             )}
+            {hero.status === 'running' && (inFlight.get(hero.id) ?? 0) === 0 && now - (hero.lastActionAt ?? hero.roundStartedAt ?? hero.startedAt) > QUIET_MS && (
+              <Button
+                key="cortar"
+                onPress={async () => {
+                  const min = Math.floor((now - (hero.lastActionAt ?? hero.startedAt)) / 60_000)
+                  await $.prompt.submit({
+                    text: tr(
+                      `Desconecta a ${hero.name} (TaskStop con task_id ${hero.id}): lleva ${min} min sin acciones. No lo vuelvas a enviar sin preguntarme.`,
+                      `Stop ${hero.name} (TaskStop with task_id ${hero.id}): idle for ${min} min. Do not send it again without asking me.`,
+                    ),
+                  })
+                  $.ui.toast(tr(`✂ Le pedí a Clawd que desconecte a ${hero.name}`, `✂ I asked Clawd to stop ${hero.name}`))
+                }}
+              >
+                {tr('✂ Desconectar', '✂ Disconnect')}
+              </Button>
+            )}
             <Button key="mas" onPress={() => update($, cardMore, isOn => !isOn)}>
                 {isMore ? tr('▾ Menos', '▾ Less') : tr('▸ Más', '▸ More')}
               </Button>
@@ -2791,6 +2877,14 @@ export const register: Register = on => {
               {tr('Volver a la conversación principal', 'Back to the main conversation')}
             </Button>
           </Box>
+        )}
+        {isUnsaved && (
+          <Text color={RED} wrap="wrap">
+            {tr(
+              '⚠️ Esta sesión no guarda la conversación: la terminal heredó la marca de sesión hija. Ciérrala y abre la terminal desde Spotlight o el Dock (o arranca claude con CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1).',
+              '⚠️ This session is not saving the conversation: the terminal inherited the child-session marker. Close it and open the terminal from Spotlight or the Dock (or start claude with CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1).',
+            )}
+          </Text>
         )}
         {askBanner}
         {bellBanner}

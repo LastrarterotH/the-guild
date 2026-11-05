@@ -178,7 +178,8 @@ export function realmDetail(e: GremioRealmEntry, home: string | null, now = Date
 export function realmSummary(e: GremioRealmEntry, now: number): string {
   const extra = e.state === 'asking' ? ` ${shortSince(now - e.since)}` : e.life !== null && e.life <= 20 ? ` ♥ ${Math.round(e.life)}` : ''
   const talk = talkingTo(e, now)
-  return `${e.label} ${REALM_ICON[e.state]}${extra}${talk.length > 0 ? ` 💬→${talk[0]}` : ''}`
+  const doing = e.state === 'working' && e.doing ? ` ${e.doing.length > 22 ? `${e.doing.slice(0, 21)}…` : e.doing}` : ''
+  return `${e.label} ${REALM_ICON[e.state]}${extra}${doing}${talk.length > 0 ? ` 💬→${talk[0]}` : ''}`
 }
 
 /** Sube por los procesos padres y anota cada terminal que encuentra (la pestaña es una de ellas). */
@@ -196,6 +197,48 @@ function tabTest(ttys: readonly string[], title: string | null): string {
   if (ttys.length > 0) tests.push(`({${ttys.map(t => asText(`/dev/${t.replace(/[^a-z0-9]/gi, '')}`)).join(', ')}} contains (tty of t))`)
   if (title) tests.push(`((custom title of t) ends with ${asText(title)})`)
   return tests.length > 0 ? tests.join(' or ') : 'false'
+}
+
+/** Si una sesión corre en Ghostty (por su TERM_PROGRAM). */
+export function isGhostty(program: string | null | undefined): boolean {
+  return /ghostty/i.test(program ?? '')
+}
+
+/**
+ * Ghostty no tiene AppleScript: se le pide a System Events que pulse la pestaña
+ * (un «radio button» del grupo de pestañas nativo) cuyo nombre contenga el título.
+ * La primera vez macOS pide permiso de Accesibilidad para la terminal que lo corre.
+ */
+export function ghosttyFocusScript(title: string): string {
+  return [
+    'tell application "Ghostty" to activate',
+    'tell application "System Events"',
+    '  tell process "Ghostty"',
+    '    repeat with w in windows',
+    '      try',
+    `        if (name of w) contains ${asText(title)} then`,
+    '          perform action "AXRaise" of w',
+    '          return "ok"',
+    '        end if',
+    '        repeat with b in (radio buttons of tab group 1 of w)',
+    `          if (name of b) contains ${asText(title)} then`,
+    '            click b',
+    '            perform action "AXRaise" of w',
+    '            return "ok"',
+    '          end if',
+    '        end repeat',
+    '      end try',
+    '    end repeat',
+    '  end tell',
+    'end tell',
+    'return "no"',
+  ].join('\n')
+}
+
+/** El título de una pestaña, escrito directo a su terminal (OSC 2): sirve en Ghostty, kitty, iTerm2… */
+export function titleCommand(tty: string, title: string): string[] {
+  const safe = title.replace(/[\x00-\x1f\x7f]/g, ' ')
+  return ['sh', '-c', 'printf "\\033]2;%s\\007" "$1" > "/dev/$2"', 'title', safe, tty.replace(/[^a-z0-9]/gi, '')]
 }
 
 /** Lo que Terminal.app tiene que hacer para mostrar la pestaña de una sesión (por terminal o por título). */

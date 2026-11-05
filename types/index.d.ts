@@ -188,6 +188,12 @@ export type GremioRealmEntry = {
   closed?: boolean
   /** Otras sesiones a las que les escribió hace poco (SendMessage), por su nombre. */
   talking?: Array<{ to: string; at: number }>
+  /** Lo que está haciendo ahora mismo (si trabaja): «escribiendo armar.py». */
+  doing?: string | null
+  /** La terminal que la corre (TERM_PROGRAM): Apple_Terminal, ghostty, iTerm.app… */
+  program?: string | null
+  /** No guarda la conversación (heredó la marca de sesión hija). */
+  unsaved?: boolean
 }
 /** Una línea de la crónica; `heroId` si habla de un aventurero (al tocarla se abre su ficha). */
 export type GremioLogEntry = { at: number; text: string; heroId?: string }

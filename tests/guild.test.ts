@@ -5,9 +5,9 @@ import type { Engine } from 'claude-code/testing'
 
 import { epithet } from '../hooks/apodos'
 import { absorbQuota, addProjectSpend, projectShares } from '../hooks/libro'
-import { coinsOf, firstUserTexts, lastTitle, realmDetail, realmRow, realmSummary, talkingTo } from '../hooks/reino'
+import { coinsOf, firstUserTexts, ghosttyFocusScript, isGhostty, lastTitle, realmDetail, realmRow, realmSummary, talkingTo, titleCommand } from '../hooks/reino'
 import { classOf, describeTool, firstSentence, modelName } from '../hooks/describe'
-import { EMPTY_QUOTA, primary, sessionPrimary } from '../hooks/cuota'
+import { chargeBar, EMPTY_QUOTA, isWeekHigh, leftColor, primary, sessionPrimary, whenText } from '../hooks/cuota'
 import { plan } from '../hooks/doctrine'
 import { langChoice, langFrom, setLang, tr } from '../hooks/i18n'
 import { rain, rainCells, recastAs, setTheme, themeChoice } from '../hooks/tema'
@@ -319,8 +319,8 @@ test('la cuota del plan se reparte entre el Maestro y los aventureros', async ($
   // Pesos: Maestro 0,50 y Pícaro 0,03 (precio equivalente). La sesión consumió 4 puntos de 5 h.
   const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   // Cerrado: una línea por bolsa, con sus 🪙, lo que queda y cuándo se rellena.
-  expect((await ui.find({ key: 'bolsa-five_hour' }))?.text).toBe('▸ Jornada 🪙🪙🪙🪙🪙🪙🪙🪙🪙·  86  ↻ 1 h 30 min')
-  expect((await ui.find({ key: 'bolsa-seven_day' }))?.text).toBe('▸ Semana  🪙🪙🪙🪙🪙🪙🪙🪙🪙·  94  ↻ 2 d 23 h')
+  expect((await ui.find({ key: 'bolsa-five_hour' }))?.text).toBe('▸ Jornada ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱ 86 %  ↻ 1 h 30 min')
+  expect((await ui.find({ key: 'bolsa-seven_day' }))?.text).toBe('▸ Semana  ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▱ 94 %  ↻ 2 d 23 h')
   expect(await ui.find({ type: 'Text', text: /Gastas/ })).toBeUndefined()
   expect(await ui.find({ type: 'Raster', key: 'bolsa-five_hour' })).toBeUndefined()
   // Al tocar la jornada se abre su detalle.
@@ -351,7 +351,7 @@ test('si el ritmo no alcanza, el panel avisa a qué hora llegarías al 100%', as
   await $.session.measure(measure(80, 22))
   const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   // El aviso se ve sin abrir nada: reemplaza al reloj de la línea.
-  expect((await ui.find({ key: 'bolsa-five_hour' }))?.text).toBe('▸ Jornada 🪙🪙· · · · · · · ·  20  se acaba en 20 min')
+  expect((await ui.find({ key: 'bolsa-five_hour' }))?.text).toMatch(/^▸ Jornada ▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱ 20 %  se acaba (hoy|mañana|el \S+) \d\d:\d\d$/)
   await ui.press({ key: 'bolsa-five_hour' })
   expect(await ui.find({ type: 'Text', text: /^↻ se rellena en 1 h 40 min$/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /^Gastas 60 por hora · se acaba en 20 min$/ })).toBeDefined()
@@ -1407,4 +1407,34 @@ test('la ventana que manda es la de 5 h si existe, y si no la semana', () => {
   expect(primary([])).toBeNull()
   expect(sessionPrimary({ ...EMPTY_QUOTA, windows: [week], sessionFive: 3, sessionWeek: 7 })).toBe(7)
   expect(sessionPrimary({ ...EMPTY_QUOTA, windows: [week, five], sessionFive: 3, sessionWeek: 7 })).toBe(3)
+})
+
+test('la barra de carga, el color y el «cuándo» legible', () => {
+  expect(chargeBar(48, 10)).toBe('▰▰▰▰▰▱▱▱▱▱')
+  expect(chargeBar(0, 10)).toBe('▱▱▱▱▱▱▱▱▱▱')
+  expect(leftColor(70)).toBe('#3ddc97')
+  expect(leftColor(30)).toBe('#ffd166')
+  expect(leftColor(10)).toBe('#ef476f')
+  const now = new Date(2026, 10, 5, 13, 0).getTime()
+  expect(whenText(now + 2 * 3_600_000, now)).toBe('hoy 15:00')
+  expect(whenText(now + 24 * 3_600_000, now)).toBe('mañana 13:00')
+  expect(whenText(now + 3 * 24 * 3_600_000 + 5 * 3_600_000, now)).toBe('el dom 18:00')
+  expect(isWeekHigh([{ kind: 'seven_day', percent: 96 }])).toBe(true)
+  expect(isWeekHigh([{ kind: 'seven_day', percent: 80 }])).toBe(false)
+})
+
+test('Ghostty: el guion de pestaña y la orden de título', () => {
+  expect(ghosttyFocusScript('Recetario')).toContain('contains "Recetario"')
+  expect(isGhostty('ghostty')).toBe(true)
+  expect(isGhostty('Apple_Terminal')).toBe(false)
+  const cmd = titleCommand('ttys004', '🔔 Recetario')
+  expect(cmd[0]).toBe('sh')
+  expect(cmd.at(-1)).toBe('ttys004')
+  expect(cmd.at(-2)).toBe('🔔 Recetario')
+})
+
+test('la Red muestra la acción en curso de una sesión que trabaja', () => {
+  const now = 1_000_000
+  const e = { key: 'a', label: 'Recetario', state: 'working', since: now, running: 0, life: 50, at: now, doing: 'escribiendo armar.py' } as GremioRealmEntry
+  expect(realmSummary(e, now)).toBe('Recetario ⏳ escribiendo armar.py')
 })

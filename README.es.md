@@ -31,10 +31,13 @@ Un mod para Claude Code. Clawd es el **Gran Maestre** del gremio (tu sesión pri
 - **La vuelta:** el que vuelve se queda unos segundos en el campo con su 💰 (o 🩹 si volvió herido) antes de entrar a la taberna.
 - **La siesta:** cuando la conversación se llena, Claude Code la resume sola (o la resumes tú con `/compact`). Mientras tanto Clawd duerme (ojos cerrados y una «Z», «😴 durmiendo una siesta…», y 😴 en el reino) y al despertar la crónica dice cuánta vida recuperó («🌅 Clawd despertó de su siesta: la vida pasó de 27 % a 92 %»).
 - **Avisos suaves, una vez:** cuando a Clawd le queda poca vida (menos de 20 % de contexto) se cansa (párpados caídos y una gotita) y sugiere `/compact`; si al ritmo actual la bolsa de la jornada no alcanza, lo dice una vez por ventana, aunque tengas varias sesiones abiertas.
+- **Pronóstico de la siesta:** la vida del Gran Maestre dice en cuántos turnos, a este ritmo, se resumirá la conversación («siesta en ~3 turnos»), para hacer /compact antes de algo grande.
+- **Sesión sin guardar:** si la terminal heredó la marca de sesión hija (Claude Code no guarda la conversación), el panel lo avisa arriba y dice cómo arreglarlo.
+- **Ghostty:** la marca 🔔 en la pestaña e «Ir a la sesión» funcionan también en Ghostty (la pestaña se busca por System Events; macOS pide una vez el permiso de Accesibilidad).
 - **Línea de estado:** con el panel cerrado se ve «♥ 68 · 🪙 72 · 🧭 2», y «📜✗ sin Código» si lo apagaste.
 - **Se recuerda lo que apagas:** el sonido y el Código quedan como los dejaste en la sesión siguiente.
 - **📋 Copiar botín:** en la ficha de cada aventurero, copia su informe al portapapeles.
-- **💤 Quieto:** si un aventurero lleva más de 5 minutos sin acciones ni herramientas en curso, se ve «quieto hace N min».
+- **💤 Quieto:** si un aventurero lleva más de 5 minutos sin acciones ni herramientas en curso, dice «quieto hace N min», y su ficha ofrece «✂ Desconectar», que le pide a Clawd que lo detenga (TaskStop).
 - **Todo se toca:** las líneas de la crónica abren la ficha del aventurero; «+N más» abre la taberna entera.
 - **El Código explica lo que aprende:** cuando una clase falla seguido y el Código empieza a mandar la siguiente, la crónica lo dice (y también cuando se recupera).
 - **Varias sesiones a la vez:** el libro cuenta la cuota una sola vez aunque tengas varias sesiones abiertas, y las escrituras van en fila.
@@ -42,7 +45,7 @@ Un mod para Claude Code. Clawd es el **Gran Maestre** del gremio (tu sesión pri
 - **El Código del Gremio** decide modelo y esfuerzo de cada misión: buscar va a un Pícaro con esfuerzo bajo y sin herramientas de edición (Bash sigue sujeto a los permisos normales de Claude Code), investigar a un Bardo, diseñar a un Mago. Acota cada misión y frena las copias de toda la conversación para tareas livianas.
 - **El Archimago (Fable) siempre pide tu permiso.**
 - **Experiencia:** Haiku clasifica cada misión. Si una clase falla seguido en un tipo de misión, la siguiente parecida sube de clase. En la ficha de cada aventurero que volvió, «¿Te sirvió lo que trajo?» (👍/👎, una sola vez) le enseña al Código: un 👎 cuenta como misión fallida.
-- **Tesoro del gremio:** tu cuota del plan en 🪙 (cada una, 10 %), una línea para la jornada de 5 horas y otra para la semana, con lo que queda y cuándo se rellena (↻). Con varias sesiones abiertas, «esta sesión gastó» es su parte de lo que subió la cuota, repartido según lo que gastó cada una. Al tocar una bolsa se abre el detalle: cuánto gastas por hora, el reparto estimado entre Clawd y cada clase y cuánto te ahorró el Código. El botón 📕 Libro abre la historia de todas las sesiones.
+- **Tesoro del gremio:** tu cuota del plan como una barra de carga por ventana (la jornada de 5 h si tu plan la tiene, y la semana), verde que pasa a ámbar bajo 50 % y a rojo bajo 20 %, con lo que queda, cuándo se acaba a este ritmo («se acaba el jue 18:00») o cuándo se recarga (↻). Los planes sin ventana de 5 h (Ultra) se cuentan por semana. Sobre el 95 % de la semana el Código manda solo Pícaros y Bardos, lo dice una vez y la línea de estado muestra ⛔; el detalle de la semana dice dónde se fue la energía por proyecto.
 - **Sonidos:** una melodía suave de marimba cuando Clawd termina, un sonido propio por clase al volver y una trompeta triste cuando algo falla.
 - **Zoom:** con muchos agentes, el panel pasa a versión mini y luego a una fila por clase.
 

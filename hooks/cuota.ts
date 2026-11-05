@@ -112,6 +112,40 @@ export function span(ms: number): string {
   return `${Math.floor(h / 24)} d ${h % 24} h`
 }
 
+/** La barra de carga: ▰ lo que queda, ▱ lo gastado (de izquierda a derecha se vacía). */
+export function chargeBar(left: number, width: number): string {
+  const full = Math.max(0, Math.min(width, Math.round((left / 100) * width)))
+  return '▰'.repeat(full) + '▱'.repeat(width - full)
+}
+
+/** El color de lo que queda: verde, ámbar bajo 50, rojo bajo 20. */
+export function leftColor(left: number): string {
+  return left < 20 ? '#ef476f' : left < 50 ? '#ffd166' : '#3ddc97'
+}
+
+const DAYS_ES = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb']
+const DAYS_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+/** «hoy 18:00», «mañana 09:30», «el jue 18:00»: un momento futuro, en hora local. */
+export function whenText(at: number, now: number): string {
+  const d = new Date(at)
+  const n = new Date(now)
+  const hhmm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  const dayGap = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() - new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime()) / 86_400_000)
+  if (dayGap <= 0) return tr(`hoy ${hhmm}`, `today ${hhmm}`)
+  if (dayGap === 1) return tr(`mañana ${hhmm}`, `tomorrow ${hhmm}`)
+  return tr(`el ${DAYS_ES[d.getDay()]} ${hhmm}`, `${DAYS_EN[d.getDay()]} ${hhmm}`)
+}
+
+/** Sobre esto (%, usado) la semana está «alta»: el Código manda solo lo barato. */
+export const HIGH_WEEK = 95
+
+/** Si la semana del plan pasó del 95 %. */
+export function isWeekHigh(windows: readonly { kind: string; percent: number }[]): boolean {
+  const w = windows.find(x => x.kind === 'seven_day')
+  return w !== undefined && w.percent >= HIGH_WEEK
+}
+
 /** Una barra de la ventana: ▮ lo usado, ▯ lo libre. */
 export function bar(percent: number, width: number): string {
   const full = Math.max(0, Math.min(width, Math.round((percent / 100) * width)))
