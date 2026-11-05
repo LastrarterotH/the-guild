@@ -20,7 +20,7 @@ const INK: Record<string, number> = {
   w: 0xf4f4f8, // camisa blanca
   t: 0x2a2f3a, // corbata
   k: 0x1d2430, // traje oscuro (los Agentes)
-  l: 0xcfd0dc, // traje claro (el Arquitecto)
+  l: 0xb9bcc8, // traje claro (el Arquitecto)
   n: 0x2b2b38, // abrigo de Neo
   K: 0x44445a, // camisa de Neo
   o: 0x3f7f7f, // chaleco del Oráculo
@@ -34,8 +34,8 @@ const INK: Record<string, number> = {
   // Solo en los grandes (36x20):
   i: 0xcfe6ff, // cristal de los lentes (reflejo de pantallas)
   z: 0xc9a07a, // sombra de la piel (nariz, boca)
-  u: 0xe6e6ee, // brillo del traje claro
-  L: 0xa9a9b8, // sombra del traje claro
+  u: 0xdcdde6, // brillo del traje claro
+  L: 0x8e92a2, // sombra del traje claro
   a: 0x2f3a4d, // brillo del traje oscuro
   J: 0x121820, // sombra del traje oscuro
   N: 0x3b3b4c, // brillo del abrigo de Neo
@@ -75,51 +75,55 @@ type Human = {
   tie: string
 }
 
-/** Una figura humana grande (36x20): cabeza con pelo, lentes y barba; traje con solapas, camisa y corbata; manos y zapatos. */
+/**
+ * Una figura humana grande (36x20): cabeza de 9 filas (pelo, lentes, nariz y
+ * barba), cuello, torso de 7 con solapas, camisa y corbata, brazos con manos,
+ * y piernas con zapatos. La corbata va en las columnas 17-18 (el centro): una
+ * celda admite dos colores, así que puede cruzar el borde de un bloque.
+ */
 function human(o: Human): Pick<Figure, 'big' | 'bigFeet'> {
   const { hair: h, skin: s, hi, suit: l, sd, shirt: w, tie: t } = o
-  const x = 'x'
-  const g = 'g'
-  const eyes =
-    o.glasses === 'round'
-      ? [`${h}${h}${s}${s}${x}${x}${x}${x}${s}${s}${x}${x}${x}${x}${h}${h}`, `${h}${h}${s}${s}${x}ei${x}${s}${s}${x}ie${x}${h}${h}`]
-      : o.glasses === 'wide'
-        ? [`${h}${h}${s}${s}${g}${g}${g}${g}${g}${g}${g}${g}${g}${g}${h}${h}`, `${h}${h}${s}${s}${g}${g}${g}${g}${g}${g}${g}${g}${g}${g}${h}${h}`]
-        : o.glasses === 'small'
-          ? [`${h}${h}${s}${s}${g}${g}${g}${g}${s}${s}${g}${g}${g}${g}${h}${h}`, `${h}${h}${s}${s}${g}${g}${g}${g}${s}${s}${g}${g}${g}${g}${h}${h}`]
-          : [`${h}${h}${s}${s}${s}${s}${s}${s}${s}${s}${s}${s}${s}${s}${h}${h}`, `${h}${h}${s}${s}${s}e${s}${s}${s}${s}${s}${s}e${s}${h}${h}`]
-  const chin = o.beard
-    ? [`..${h}${h}${s}${s}${s}${s}${s}${s}${s}${s}${s}${s}${h}${h}..`, `..${h}${h}${h}${h}${h}${h}${h}${h}${h}${h}${h}${h}${h}${h}..`, `....${h}${h}${h}${h}${h}${h}${h}${h}${h}${h}....`]
-    : [`..${s}${s}${s}${s}${s}${s}z${s}${s}${s}${s}${s}${s}${s}..`, `....${s}${s}${s}${s}${s}${s}${s}${s}${s}${s}....`, `......${s}${s}${s}${s}${s}${s}${s}${s}......`]
   const pad = (row: string) => {
     const left = Math.floor((36 - row.length) / 2)
     return `${'.'.repeat(left)}${row}${'.'.repeat(36 - left - row.length)}`
   }
+  const eyes =
+    o.glasses === 'round'
+      ? [`${s}${s}xxxx${s}${s}xxxx`, `${s}${s}xeix${s}${s}xiex`]
+      : o.glasses === 'wide'
+        ? [`${s}${s}gggggggggg`, `${s}${s}gggggggggg`]
+        : o.glasses === 'small'
+          ? [`${s}${s}gggg${s}${s}gggg`, `${s}${s}gggg${s}${s}gggg`]
+          : [s.repeat(12), `${s}${s}${s}e${s}${s}${s}${s}e${s}${s}${s}`]
+  const chin = o.beard
+    ? [`${h}${h}${s.repeat(4)}zz${s}${s}${h}${h}`, h.repeat(12), `..${h.repeat(8)}..`]
+    : [`${s.repeat(6)}zz${s.repeat(4)}`, `${s.repeat(5)}zzzz${s.repeat(3)}`, `..${s}${s}${s.repeat(4)}${s}${s}..`]
+  const neck = o.beard ? `....${h}${h}${h}${h}....` : `....${s}${s}${s}${s}....`
   const head = [
-    pad(`${h}${h}${h}${h}${h}${h}${h}${h}`),
-    pad(`${h}${h}${h}${h}${h}${h}${h}${h}${h}${h}${h}${h}`),
-    pad(`${h}${h}${h}${h}${h}${h}${h}${h}${h}${h}${h}${h}`),
-    pad(`${h}${h}${s}${s}${s}${s}${s}${s}${s}${s}${h}${h}`),
-    pad(`${h}${h}${s}${s}${s}${s}${s}${s}${s}${s}${h}${h}`),
-    pad(`${h}${h}${s}${s}${s}${s}${s}${s}${s}${s}${h}${h}`),
+    pad(h.repeat(8)),
+    pad(h.repeat(12)),
+    pad(`${h}${h}${s.repeat(8)}${h}${h}`),
+    pad(`${h}${h}${s.repeat(8)}${h}${h}`),
     pad(eyes[0] ?? ''),
     pad(eyes[1] ?? ''),
-    pad(`${s.repeat(6)}zz${s.repeat(4)}`),
     pad(chin[0] ?? ''),
     pad(chin[1] ?? ''),
-    pad(chin[2] ?? ''),
+    pad(neck),
   ]
   const torso = [
-    pad(`${hi}${hi}${l}${l}${l}${l}${w}${w}${w}${w}${l}${l}${l}${l}${sd}${sd}`),
-    pad(`${hi}${hi}${hi}${hi}${l}${l}${l}${l}${w}${w}${t}${t}${w}${w}${l}${l}${l}${l}${sd}${sd}${sd}${sd}`),
-    pad(`${hi}${hi}${l.repeat(8)}${w}${w}${t}${t}${w}${w}${l.repeat(8)}${sd}${sd}`),
-    pad(`${hi}${hi}${l.repeat(8)}${w}${w}${t}${t}${w}${w}${l.repeat(8)}${sd}${sd}`),
-    pad(`${hi}${hi}${l.repeat(10)}${t}${t}${l.repeat(10)}${sd}${sd}`),
-    pad(`${hi}${hi}${l.repeat(10)}${t}${t}${l.repeat(10)}${sd}${sd}`),
+    pad(`${hi}${hi}${l}${l}${w.repeat(8)}${l}${l}${sd}${sd}`),
+    pad(`${hi.repeat(4)}${l}${l}${w}${w}${w}${t}${t}${w}${w}${w}${l}${l}${sd.repeat(4)}`),
+    pad(`${hi}${hi}${l.repeat(6)}${w}${t}${t}${w}${l.repeat(6)}${sd}${sd}`),
+    pad(`${hi}${hi}${l.repeat(7)}${t}${t}${l.repeat(7)}${sd}${sd}`),
+    pad(`${hi}${hi}${l.repeat(7)}${t}${t}${l.repeat(7)}${sd}${sd}`),
+    pad(`${s}${s}${l.repeat(14)}${sd}${sd}${s}${s}`),
+    pad(`${s}${s}${l.repeat(14)}${sd}${sd}${s}${s}`),
   ]
-  const feet0 = [`......${s}${s}....${l}${l}${l}${l}....${l}${l}${l}${l}....${s}${s}......`, '............dddd....dddd............']
-  const feet1 = [`......${s}${s}..${l}${l}${l}${l}........${l}${l}${l}${l}..${s}${s}......`, '..........dddd........dddd..........']
-  return { big: [...head, ...torso], bigFeet: [feet0, feet1] }
+  const legs = (at: number) => `${'.'.repeat(at)}${l}${l}${sd}${sd}${'.'.repeat(36 - 2 * at - 8)}${l}${l}${sd}${sd}${'.'.repeat(at)}`
+  const shoes = (at: number) => `${'.'.repeat(at)}dddd${'.'.repeat(36 - 2 * at - 8)}dddd${'.'.repeat(at)}`
+  const feet0 = [legs(12), legs(12), shoes(12)]
+  const feet1 = [legs(10), legs(10), shoes(10)]
+  return { big: [...head, ...torso, ...feet0.slice(0, 1)], bigFeet: [feet0.slice(1), feet1.slice(1)] }
 }
 
 const FIGURE: Record<GremioClass, Figure> = {
