@@ -1,14 +1,15 @@
 import type { On } from 'claude-code'
+import type { GremioRealmEntry } from '../types'
 import { expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
 import { epithet } from '../hooks/apodos'
 import { absorbQuota, addProjectSpend, projectShares } from '../hooks/libro'
-import { coinsOf, firstUserTexts, lastTitle } from '../hooks/reino'
+import { coinsOf, firstUserTexts, lastTitle, realmDetail, realmRow, realmSummary, talkingTo } from '../hooks/reino'
 import { classOf, describeTool, firstSentence, modelName } from '../hooks/describe'
 import { plan } from '../hooks/doctrine'
 import { langChoice, langFrom, setLang, tr } from '../hooks/i18n'
-import { rain, recastAs, setTheme, themeChoice } from '../hooks/tema'
+import { rain, rainCells, recastAs, setTheme, themeChoice } from '../hooks/tema'
 import { OLD_STORE, pickImport } from '../hooks/migrar'
 import { CELLS, spriteCells, spriteGrid } from '../hooks/sprites'
 
@@ -1151,7 +1152,7 @@ test('lo que suena se ve: la pestaña se marca, macOS avisa y las demás sesione
   // Lo que sonó en otra sesión aparece arriba, con dónde y quién.
   const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
   for (let i = 0; i < 30 && !(await ui.find({ key: 'ir-sono-otra' })); i++) await ui.redraw()
-  expect((await ui.find({ key: 'ir-sono-otra' }))?.text).toBe('🔔 Recetario · Clawd terminó · 5 s · 🚪 ir'.replace('5 s', 'ahora'))
+  expect((await ui.find({ key: 'ir-sono-otra' }))?.text).toBe('🔔 Clawd terminó · Recetario · 5 s · 🚪 ir'.replace('5 s', 'ahora'))
   await ui.unmount()
   // Cuando Clawd termina un turno largo aquí: marca su pestaña y avisa por macOS.
   await $.turn.start({ turnId: 'm1' } as never)
@@ -1364,4 +1365,19 @@ test('la lluvia de la Matrix mide lo que se le pide y cambia con el reloj', () =
   expect(rain(40, 0).length).toBe(40)
   expect(rain(40, 0)).not.toBe(rain(40, 30))
   expect(rain(40, 0)).toBe(rain(40, 1))
+})
+
+test('la lluvia de la Matrix en celdas mide lo pedido y cambia con el cuadro', () => {
+  const a = rainCells(30, 2, 0)
+  expect(a.length).toBe(Math.ceil((30 * 2 * 12) / 3) * 4)
+  expect(rainCells(30, 2, 5)).not.toBe(a)
+})
+
+test('la Red muestra con quién conversa una sesión', () => {
+  const now = 1_000_000
+  const e = { key: 'a', label: 'Recetario', state: 'working', since: now, running: 0, life: 50, at: now, talking: [{ to: 'Faro', at: now - 60_000 }, { to: 'Huerto', at: now - 11 * 60_000 }] } as GremioRealmEntry
+  expect(talkingTo(e, now)).toEqual(['Faro'])
+  expect(realmSummary(e, now)).toContain('💬→Faro')
+  expect(realmRow(e, now, false)).toContain('💬→Faro')
+  expect(realmDetail(e, null, now)).toContain('💬 conversa con Faro')
 })

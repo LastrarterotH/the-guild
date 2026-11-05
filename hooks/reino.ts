@@ -150,14 +150,25 @@ export function realmRow(e: GremioRealmEntry, now: number, isOwn: boolean): stri
     e.life !== null ? `♥ ${Math.round(e.life)}`.padEnd(5) : '     ',
     typeof e.coins === 'number' ? tr(`🪙 ${Math.round(e.coins)}`, `🪙 ${Math.round(e.coins)}`).padEnd(5) : '     ',
     e.running > 0 ? tr(`🧭 ${e.running}`, `🧭 ${e.running}`) : (e.unread ?? 0) > 0 ? tr(`💰 ${e.unread}`, `💰 ${e.unread}`) : '',
+    talkingTo(e, now).length > 0 ? `💬→${talkingTo(e, now).join(',')}` : '',
   ]
   return parts.join('  ').trimEnd()
 }
 
-/** Lo que se ve al tocar una fila: qué te pide (o lo último que pasó) y su carpeta. */
-export function realmDetail(e: GremioRealmEntry, home: string | null): string[] {
+/** Con quién conversa hace poco (le escribió por SendMessage), si alguien. */
+export function talkingTo(e: GremioRealmEntry, now: number): string[] {
+  return [...new Set((e.talking ?? []).filter(t => now - t.at < TALK_MS).map(t => t.to))]
+}
+
+/** Una conversación entre sesiones cuenta mientras el último mensaje tenga menos de esto. */
+export const TALK_MS = 10 * 60_000
+
+/** Lo que se ve al tocar una fila: qué te pide (o lo último que pasó), con quién conversa y su carpeta. */
+export function realmDetail(e: GremioRealmEntry, home: string | null, now = Date.now()): string[] {
   const lines: string[] = []
   if (e.ask) lines.push(e.ask)
+  const talk = talkingTo(e, now)
+  if (talk.length > 0) lines.push(tr(`💬 conversa con ${talk.join(', ')}`, `💬 talking with ${talk.join(', ')}`))
   else if (e.last) lines.push(tr(`lo último: ${e.last}`, `last: ${e.last}`))
   if (e.folder) lines.push(`📁 ${home && e.folder.startsWith(home) ? `~${e.folder.slice(home.length)}` : e.folder}`)
   return lines
@@ -166,7 +177,8 @@ export function realmDetail(e: GremioRealmEntry, home: string | null): string[] 
 /** La línea cerrada: cada sesión con su icono; la vida si está baja y cuánto lleva preguntando. */
 export function realmSummary(e: GremioRealmEntry, now: number): string {
   const extra = e.state === 'asking' ? ` ${shortSince(now - e.since)}` : e.life !== null && e.life <= 20 ? ` ♥ ${Math.round(e.life)}` : ''
-  return `${e.label} ${REALM_ICON[e.state]}${extra}`
+  const talk = talkingTo(e, now)
+  return `${e.label} ${REALM_ICON[e.state]}${extra}${talk.length > 0 ? ` 💬→${talk[0]}` : ''}`
 }
 
 /** Sube por los procesos padres y anota cada terminal que encuentra (la pestaña es una de ellas). */

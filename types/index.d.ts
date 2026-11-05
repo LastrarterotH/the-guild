@@ -186,6 +186,8 @@ export type GremioRealmEntry = {
   bell?: { at: number; icon: string; text: string } | null
   /** La sesión se cerró: ya no se muestra, pero su gasto cuenta hasta que pase la ventana. */
   closed?: boolean
+  /** Otras sesiones a las que les escribió hace poco (SendMessage), por su nombre. */
+  talking?: Array<{ to: string; at: number }>
 }
 /** Una línea de la crónica; `heroId` si habla de un aventurero (al tocarla se abre su ficha). */
 export type GremioLogEntry = { at: number; text: string; heroId?: string }

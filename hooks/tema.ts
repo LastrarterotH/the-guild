@@ -5,6 +5,7 @@
 // los sonidos. Se elige con `/guild theme matrix` y se recuerda entre sesiones.
 
 import type { Lang } from './i18n'
+import { DEFAULT_COLOR, encodeCells } from './celdas'
 
 export type Theme = 'guild' | 'matrix'
 
@@ -55,6 +56,7 @@ const ICONS: Rule[] = [
   [/👑/g, '🖥️'],
   [/🍺/g, '⬜'],
   [/📖/g, '🧾'],
+  [/📕/g, '🗄️'],
 ]
 
 // Primero las frases largas, después las palabras sueltas: así «Código del
@@ -65,6 +67,14 @@ const ES: Rule[] = [
   ...phrase('Gremio abierto', 'Matrix abierta'),
   ...phrase('Gremio cerrado', 'Matrix cerrada'),
   ...phrase('Tesoro del gremio', 'Energía de la Matrix'),
+  ...phrase('Libro del gremio', 'Archivo de la Matrix'),
+  ...word('libro', 'archivo'),
+  ...phrase('la crónica', 'el registro'),
+  ...phrase('La crónica', 'El registro'),
+  ...word('crónica', 'registro'),
+  ...phrase('sesión principal', 'núcleo'),
+  ...phrase('En misión', 'Conectados'),
+  ...phrase('Nadie en misión', 'Nadie conectado'),
   ...phrase('Del oro gastado', 'De la energía gastada'),
   ...phrase('a Clawd', 'al Arquitecto'),
   ...phrase('A Clawd', 'Al Arquitecto'),
@@ -139,6 +149,12 @@ const EN: Rule[] = [
   ...phrase('Clawd', 'the Architect'),
   ...phrase('Guild Code', 'Matrix Code'),
   ...phrase('Guild treasury', 'Matrix power'),
+  ...phrase('Guild ledger', 'Matrix archive'),
+  ...word('ledger', 'archive'),
+  ...word('chronicle', 'log'),
+  ...phrase('main session', 'mainframe'),
+  ...phrase('On quest', 'Jacked in'),
+  ...phrase('No one on a quest', 'No one jacked in'),
   ...word('guild', 'Matrix'),
   ...phrase('Grand Masters', 'Architects'),
   ...phrase('GRAND MASTER', 'ARCHITECT'),
@@ -207,4 +223,29 @@ export function rain(width: number, frame: number): string {
     out += n % 7 < 4 ? ' ' : (RAIN[n % RAIN.length] ?? ' ')
   }
   return out
+}
+
+// Los verdes de la lluvia, de la cabeza de la gota (casi blanca) a la cola.
+const DROP = [0xd8ffd8, 0x5cff7a, 0x00ff41, 0x00c232, 0x008f11, 0x005f0b, 0x003b00]
+
+/**
+ * La lluvia como celdas de un Raster de `columns`×`rows`: en cada columna cae
+ * una gota a su ritmo, con la cabeza clara y la cola que se apaga. Cambia en
+ * cada cuadro, así que se dibuja con `$.ui.blit`, sin redibujar el panel.
+ */
+export function rainCells(columns: number, rows: number, frame: number): string {
+  const cells = []
+  for (let y = 0; y < rows; y++)
+    for (let x = 0; x < columns; x++) {
+      const seed = (Math.imul(x + 1, 2654435761) >>> 0) % 1000
+      const speed = 1 + (seed % 3) // cuadros por fila: 1 rápida, 3 lenta
+      const length = 3 + (seed % 5)
+      const period = rows + length + 4 + (seed % 9)
+      const head = Math.floor((frame + seed * 7) / speed) % period
+      const dist = head - y
+      const glyph = RAIN[((x * 31 + y * 7 + Math.floor(frame / (2 + (seed % 3)))) * 13 + seed) % RAIN.length] ?? ' '
+      if (dist < 0 || dist >= length) cells.push({ ch: ' ', fg: DEFAULT_COLOR, bg: DEFAULT_COLOR })
+      else cells.push({ ch: glyph, fg: DROP[Math.min(DROP.length - 1, Math.floor((dist / length) * DROP.length))] ?? 0x00ff41, bg: DEFAULT_COLOR })
+    }
+  return encodeCells(cells)
 }

@@ -4,6 +4,7 @@
 // terminal no deje rayas.
 
 import type { GremioClass } from '../types'
+import { DEFAULT_COLOR, base64 } from './celdas'
 import { tr } from './i18n'
 import { matrixGrid } from './sprites-matrix'
 import { theme } from './tema'
@@ -14,7 +15,7 @@ export type Size = 'big' | 'small' | 'mini'
 type Px = number | null
 export type Grid = Px[][]
 
-const TERMINAL_DEFAULT = 0x01000000
+const TERMINAL_DEFAULT = DEFAULT_COLOR
 
 const BODY = 0xd97757
 const BODY_DOWN = 0x7d8491
@@ -453,23 +454,6 @@ export function toCells(g: Grid): string {
     }
   }
   return base64(new Uint8Array(words.buffer))
-}
-
-const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-
-function base64(bytes: Uint8Array): string {
-  let out = ''
-  for (let i = 0; i < bytes.length; i += 3) {
-    const a = bytes[i] ?? 0
-    const b = bytes[i + 1]
-    const c = bytes[i + 2]
-    const n = (a << 16) | ((b ?? 0) << 8) | (c ?? 0)
-    out += B64[(n >> 18) & 63]
-    out += B64[(n >> 12) & 63]
-    out += b === undefined ? '=' : B64[(n >> 6) & 63]
-    out += c === undefined ? '=' : B64[n & 63]
-  }
-  return out
 }
 
 const cache = new Map<string, string>()

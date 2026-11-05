@@ -26,6 +26,7 @@ import type { Limit } from './cuota'
 import { epithet } from './apodos'
 import { absorbQuota, addProjectSpend, projectShares, windowKey } from './libro'
 import {
+  TALK_MS,
   REALM_FORGET_MS,
   REALM_FRESH_MS,
   TTY_SCRIPT,
@@ -55,7 +56,7 @@ import { CELLS, CLASS_COLOR, CLASS_LABEL, CLASS_LEVEL, CLASS_PLURAL, spriteCells
 import type { Pose, Size } from './sprites'
 import { lang, langChoice, langFrom, setLang, tr } from './i18n'
 import type { Theme } from './tema'
-import { rain, recastAs, setTheme, theme, themeChoice } from './tema'
+import { rainCells, recastAs, setTheme, theme, themeChoice } from './tema'
 import type { Lang } from './i18n'
 import { OLD_STORE, pickImport } from './migrar'
 
@@ -63,6 +64,8 @@ const PANE = 'guild'
 // El pergamino: el botín completo en un panel aparte.
 const SCROLL = 'guild-scroll'
 const SLOT = 15
+// Con pocos en el campo, salen en grande (18 celdas de ancho más el margen).
+const BIG_SLOT = 20
 const MINI = 10
 const RED = '#ef476f'
 // Bajo esta vida (contexto libre, %) Clawd se cansa y avisa.
@@ -210,6 +213,11 @@ let askWhat: string | null = null
 // La pregunta ya avisada por macOS (por su hora de inicio), para avisar una sola vez.
 let notifiedAsk: number | null = null
 let isPaneUp = false
+// La lluvia de la Matrix: su ancho en celdas (0 si no se dibuja) y sus filas.
+let rainCols = 0
+const RAIN_ROWS = 2
+// Otras sesiones a las que esta les escribió hace poco (para la Red).
+let talking: Array<{ to: string; at: number }> = []
 
 function poseFor(state: SpriteState): Pose {
   return state === 'busy' ? 'marcha' : state === 'down' ? 'caido' : state === 'tired' ? 'cansado' : state === 'asleep' ? 'durmiendo' : 'quieto'
@@ -225,6 +233,7 @@ function tick($: EngineInterface): void {
     $.ui.invalidate('ui.render')
   }
   if (frame % 150 === 0) void closeDay($).catch(() => undefined)
+  if (rainCols > 0 && theme() === 'matrix') void $.ui.blit({ requestId: PANE, key: 'lluvia', cells: rainCells(rainCols, RAIN_ROWS, frame) }).catch(() => undefined)
   for (const [key, d] of drawn) {
     let pose: Pose | null = null
     if (d.state === 'busy') pose = 'marcha'
@@ -346,6 +355,7 @@ async function ownEntry($: EngineInterface): Promise<GremioRealmEntry | null> {
     folder: sessionFolder,
     ttys: sessionTtys,
     bell: lastBell,
+    talking: talking.filter(t => now - t.at < TALK_MS),
   }
 }
 
@@ -1626,6 +1636,16 @@ export const register: Register = on => {
       const input = e as unknown as Record<string, unknown>
       const tool = String(input.tool)
       const text = describeTool(tool, input)
+      // Un mensaje a otra sesión (no a un aventurero): la Red muestra que conversan.
+      if (e.agentId === undefined && tool === 'SendMessage') {
+        const to = String(input.to ?? '').trim()
+        const isHero = (await read($, heroes)).some(u => u.id === to) || listedAgents.has(to)
+        if (to && !isHero && !/^[0-9a-f]{12,}$/i.test(to)) {
+          const at = await $.clock.now()
+          talking = [...talking.filter(t => t.to !== to && at - t.at < TALK_MS), { to: to.slice(0, 32), at }]
+          await beat($, true)
+        }
+      }
       if (e.agentId === undefined) {
         await update($, master, m => ({
           ...m,
@@ -1898,6 +1918,7 @@ export const register: Register = on => {
     isPaneUp = true
     const nextDrawn = new Map<string, Drawn>()
     const cols = Math.max(20, e.props.bodyColumns)
+    rainCols = theme() === 'matrix' ? Math.max(10, Math.min(cols, 72)) : 0
     const isCompact = e.props.placement === 'inline'
     const isNarrow = cols < 44
     const viewing = e.props.view.agentId
@@ -2240,7 +2261,7 @@ export const register: Register = on => {
                   </Text>
                 </Button>
                 {pickedRealm === r.key &&
-                  realmDetail(r, sessionHome).map(line => (
+                  realmDetail(r, sessionHome, now).map(line => (
                     <Text dimColor wrap="truncate-end">
                       {'      '}
                       {line}
@@ -2269,13 +2290,12 @@ export const register: Register = on => {
             <Button plain key={`ir-sono-${r.key}`} onPress={() => goTo($, r)}>
               <Text wrap="truncate-end">
                 <Text color={CLASS_COLOR.maestro}>
-                  {r.bell?.icon} {r.label}
+                  {r.bell?.icon} {r.bell?.text}
                 </Text>
-                <Text>
+                <Text dimColor>
                   {' '}
-                  · {r.bell?.text}
+                  · {r.label} · {shortSince(now - (r.bell?.at ?? now))} · {tr('🚪 ir', '🚪 go')}
                 </Text>
-                <Text dimColor> · {shortSince(now - (r.bell?.at ?? now))} · {tr('🚪 ir', '🚪 go')}</Text>
               </Text>
             </Button>
           ))}
@@ -2356,12 +2376,15 @@ export const register: Register = on => {
     const roundMs = (u: GremioHero) => (u.endedAt ?? now) - (u.roundStartedAt ?? u.startedAt)
     const roundTag = (u: GremioHero) => ((u.round ?? 1) > 1 ? tr(` · ronda ${u.round}`, ` · round ${u.round}`) : '')
 
+    // Pocos en el campo: en grande, con todo el detalle; si no caben, en el tamaño normal.
+    const isBigField = !isCompact && active.length <= Math.floor(cols / BIG_SLOT)
+    const slotWidth = isBigField ? BIG_SLOT : SLOT
     const slot = (u: GremioHero) => (
-      <Box flexDirection="column" alignItems="center" width={SLOT}>
-        <Box height={2} width={SLOT - 1} overflow="hidden">
+      <Box flexDirection="column" alignItems="center" width={slotWidth}>
+        <Box height={2} width={slotWidth - 1} overflow="hidden">
           <Text wrap="wrap">{doingOf(u)}</Text>
         </Box>
-        {sprite(`u-${u.id}`, u.cls, u.status === 'running' ? 'busy' : u.status === 'done' ? 'idle' : 'down', 'small')}
+        {sprite(`u-${u.id}`, u.cls, u.status === 'running' ? 'busy' : u.status === 'done' ? 'idle' : 'down', isBigField ? 'big' : 'small')}
         <Button plain key={`sel-${u.id}`} onPress={() => select(u.id)}>
           <Text bold color={CLASS_COLOR[u.cls]}>
             {picked === u.id ? '▾ ' : ''}
@@ -2740,7 +2763,7 @@ export const register: Register = on => {
         )}
         {askBanner}
         {bellBanner}
-        {theme() === 'matrix' && <Text color="#008f11">{rain(Math.min(cols, 60), frame)}</Text>}
+        {theme() === 'matrix' && <Raster key="lluvia" columns={rainCols} rows={RAIN_ROWS} cells={rainCells(rainCols, RAIN_ROWS, frame)} />}
         {masterBlock}
         {quotaBlock}
         {ledgerBlock}
