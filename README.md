@@ -58,7 +58,7 @@ The same guild can be told inside **the Matrix**: `/guild theme matrix`. Nothing
 | Bard | **an Agent**: dark suit, white shirt, tie and shades | Sonnet |
 | Rogue | **a Sentinel**: a metal dome with red eyes and moving tentacles | Haiku |
 
-Quests become connections (an adventurer is jacked in and unplugs when done), loot is the download, the tavern is the Construct, the realm is the Network, HP is the signal, coins are batteries 🔋, the nap is a déjà vu and the bell is the telephone ☎️. A line of digital rain runs above the Architect, in phosphor green. The sounds are synthesized by the mod itself (a soft phone ring, a bullet-time sweep, a spoon on a cup, two earpiece beeps, a low mechanical thrum, static): nothing from the films.
+Quests become connections (an adventurer is jacked in and unplugs when done), loot is the download, the tavern is the Construct, the realm is the Network, HP is the signal, coins are batteries 🔋, the nap is a déjà vu and the bell is the telephone ☎️. A line of digital rain runs above the Architect, in phosphor green. In a terminal that draws pictures (Ghostty, kitty, iTerm2 3.5+, WezTerm) each one is a comic-book portrait (`art/matrix/`); elsewhere, pixel art. The sounds are synthesized by the mod itself (a soft phone ring, a bullet-time sweep, a spoon on a cup, two earpiece beeps, a low mechanical thrum, static): nothing from the films.
 
 ## Commands
 

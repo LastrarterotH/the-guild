@@ -213,6 +213,10 @@ let askWhat: string | null = null
 // La pregunta ya avisada por macOS (por su hora de inicio), para avisar una sola vez.
 let notifiedAsk: number | null = null
 let isPaneUp = false
+// Retratos de la Matrix: la carpeta del mod (para la ruta de cada PNG) y si esta
+// terminal dibuja imágenes (Ghostty, kitty, iTerm2, WezTerm); si no, pixel art.
+let pluginRoot = ''
+let hasPictures = false
 // La lluvia de la Matrix: su ancho en celdas (0 si no se dibuja) y sus filas.
 let rainCols = 0
 const RAIN_ROWS = 2
@@ -986,6 +990,14 @@ async function askFable($: EngineInterface, e: AgentSpawnInput): Promise<'yes' |
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
+    pluginRoot = $.plugin.root
+    try {
+      const program = (await $.env.get('TERM_PROGRAM')) ?? ''
+      const term = (await $.env.get('TERM')) ?? ''
+      hasPictures = /ghostty|iTerm|WezTerm/i.test(program) || /kitty|ghostty/i.test(term)
+    } catch {
+      hasPictures = false
+    }
     await importOldStore($)
     await pickTheme($)
     await pickLanguage($)
@@ -1914,7 +1926,7 @@ export const register: Register = on => {
       )
     }
 
-    const { Box, Text, Button, Raster } = $.ui.resolve(e)
+    const { Box, Text, Button, Raster, Image } = $.ui.resolve(e)
     isPaneUp = true
     const nextDrawn = new Map<string, Drawn>()
     const cols = Math.max(20, e.props.bodyColumns)
@@ -1932,8 +1944,13 @@ export const register: Register = on => {
     }
 
     const sprite = (key: string, cls: GremioClass, state: SpriteState, size: Size, faded = false) => {
-      nextDrawn.set(key, { cls, state, size, faded })
       const box = CELLS[size]
+      // En la Matrix, donde la terminal puede, cada uno es su retrato (en reposo, desteñido; caído, en gris).
+      if (theme() === 'matrix' && hasPictures && pluginRoot) {
+        const variant = state === 'down' ? '-caido' : faded ? '-reposo' : ''
+        return <Image key={key} source={{ file: `${pluginRoot}/art/matrix/${cls}${variant}.png`, format: 'png' }} columns={box.columns} rows={box.rows} alt={CLASS_LABEL[cls]} />
+      }
+      nextDrawn.set(key, { cls, state, size, faded })
       return <Raster key={key} columns={box.columns} rows={box.rows} cells={spriteCells(cls, poseFor(state), frame, size, faded)} />
     }
     const shortName = (u: GremioHero) => `${CLASS_SHORT[u.cls]} ${u.name.split(' ').pop() ?? ''}`
