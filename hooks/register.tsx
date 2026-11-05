@@ -21,7 +21,7 @@ import type {
   GremioTask,
   GremioTreasury,
 } from '../types'
-import { absorb, coinText, EMPTY_QUOTA, forecast, kindLabel, pctText, ratePerHour, span } from './cuota'
+import { absorb, coinText, EMPTY_QUOTA, forecast, isShiftPlan, kindLabel, pctText, primary, ratePerHour, sessionPrimary, span } from './cuota'
 import type { Limit } from './cuota'
 import { epithet } from './apodos'
 import { absorbQuota, addProjectSpend, projectShares, windowKey } from './libro'
@@ -282,17 +282,23 @@ async function refreshStatus($: EngineInterface): Promise<void> {
   const running = list.filter(u => u.status === 'running').length
   const ctx = dm.context ?? null
   const life = ctx && ctx.percent !== null ? Math.max(0, 100 - ctx.percent) : null
-  const five = q.windows.find(w => w.kind === 'five_hour')
+  const main = primary(q.windows)
   const nowMs = await $.clock.now()
   const asking = otherSessions(kingdom, sessionKey ?? '', nowMs).filter(k => k.state === 'asking').map(k => k.label)
-  $.ui.status(statusText(life, five ? Math.max(0, 100 - five.percent) : null, running, isCode, asking))
+  $.ui.status(statusText(life, main ? Math.max(0, 100 - main.percent) : null, running, isCode, asking))
   await beat($)
 }
 
-/** La ventana de 5 h en curso, por su hora de relleno; null si todavía no se sabe. */
+/** La ventana que manda (5 h, o la semana), por su hora de relleno; null si todavía no se sabe. */
 async function currentWindow($: EngineInterface): Promise<string | null> {
-  const five = (await read($, quota)).windows.find(w => w.kind === 'five_hour')
-  return five?.resetsAt ? windowKey(five.resetsAt) : null
+  const main = primary((await read($, quota)).windows)
+  return main?.resetsAt ? windowKey(main.resetsAt) : null
+}
+
+/** Lo visto de una ventana en el libro ([más bajo, más alto]), según cuál manda. */
+function seenOf(b: GremioBook, windows: readonly { kind: string }[], key: string | null): [number, number] | undefined {
+  if (!key) return undefined
+  return isShiftPlan(windows) ? b.fiveSeen?.[key] : b.weekSeen?.[key]
 }
 
 /** Suma un gasto (dólares de la API, estimado) a lo de esta sesión en la ventana en curso. */
@@ -313,8 +319,8 @@ async function addSpend($: EngineInterface, usd: number): Promise<void> {
 /** La parte de la jornada de esta sesión, en monedas; null si no hay con qué repartir. */
 async function ownCoins($: EngineInterface): Promise<number | null> {
   const key = await currentWindow($)
-  const [mine, kingdom, b] = await Promise.all([read($, spend), read($, realm), read($, book)])
-  return coinsOf({ key: sessionKey ?? '', cost: mine.key === key ? mine.cost : 0, windowKey: key }, kingdom, key ? b.fiveSeen?.[key] : undefined)
+  const [mine, kingdom, b, q] = await Promise.all([read($, spend), read($, realm), read($, book), read($, quota)])
+  return coinsOf({ key: sessionKey ?? '', cost: mine.key === key ? mine.cost : 0, windowKey: key }, kingdom, seenOf(b, q.windows, key))
 }
 
 /** Lo que esta sesión les cuenta a las demás. */
@@ -902,7 +908,7 @@ const warnedWindows = new Set<string>()
 
 async function warnPurse($: EngineInterface, now: number): Promise<void> {
   const q = await read($, quota)
-  const w = q.windows.find(x => x.kind === 'five_hour')
+  const w = primary(q.windows)
   const fc = forecast(q, now)
   const recent = q.samples.filter(x => now - x.at <= 60 * 60 * 1000)
   const measured = recent.length > 1 ? (recent[recent.length - 1]?.at ?? 0) - (recent[0]?.at ?? 0) : 0
@@ -920,13 +926,14 @@ async function warnPurse($: EngineInterface, now: number): Promise<void> {
   } catch {
     // Sin almacén: avisa igual, una vez en esta sesión.
   }
+  const purse = w.kind === 'five_hour' ? tr('la bolsa de la jornada', 'the shift purse') : tr('el cofre de la semana', 'the weekly chest')
   $.ui.toast(
     tr(
-      `🪙 A este ritmo la bolsa de la jornada se acaba en ${span(fc.msToFull)}, antes de rellenarse.`,
-      `🪙 At this pace the shift purse runs out in ${span(fc.msToFull)}, before it refills.`,
+      `🪙 A este ritmo ${purse} se acaba en ${span(fc.msToFull)}, antes de rellenarse.`,
+      `🪙 At this pace ${purse} runs out in ${span(fc.msToFull)}, before it refills.`,
     ),
   )
-  await note($, tr(`🪙 La bolsa se acaba en ${span(fc.msToFull)} a este ritmo`, `🪙 The purse runs out in ${span(fc.msToFull)} at this pace`))
+  await note($, tr(`🪙 ${purse} se acaba en ${span(fc.msToFull)} a este ritmo`, `🪙 ${purse} runs out in ${span(fc.msToFull)} at this pace`))
 }
 
 /** Suma una lectura de las ventanas del plan y anota en el libro lo consumido. */
@@ -1163,7 +1170,8 @@ export const register: Register = on => {
       const party = await read($, heroes)
       const now = await $.clock.now()
       const dm = await read($, master)
-      const pts = (await ownCoins($)) ?? q.sessionFive
+      const pts = (await ownCoins($)) ?? sessionPrimary(q)
+      const isShift = isShiftPlan(q.windows)
       const order: GremioClass[] = ['archimago', 'mago', 'bardo', 'picaro']
       const purseName = (kind: string) =>
         kind === 'five_hour'
@@ -1203,8 +1211,8 @@ export const register: Register = on => {
         ),
         '',
         tr(
-          `**Esta jornada** el gremio gastó ${coinText(pts)} monedas: Clawd ${coinText(shareOf(t.masterCost, t, pts))}${split.length > 0 ? `, ${split.join(', ')}` : ''}`,
-          `**This shift** the guild spent ${coinText(pts)} coins: Clawd ${coinText(shareOf(t.masterCost, t, pts))}${split.length > 0 ? `, ${split.join(', ')}` : ''}`,
+          `**${isShift ? 'Esta jornada' : 'Esta semana'}** el gremio gastó ${coinText(pts)} monedas: Clawd ${coinText(shareOf(t.masterCost, t, pts))}${split.length > 0 ? `, ${split.join(', ')}` : ''}`,
+          `**${isShift ? 'This shift' : 'This week'}** the guild spent ${coinText(pts)} coins: Clawd ${coinText(shareOf(t.masterCost, t, pts))}${split.length > 0 ? `, ${split.join(', ')}` : ''}`,
         ),
         ...(t.saved > 0 && pts > 0
           ? [
@@ -1221,8 +1229,8 @@ export const register: Register = on => {
         '',
         tr('**📕 Libro del gremio** (todas las sesiones)', '**📕 Guild ledger** (all sessions)'),
         tr(
-          `- ${b.missions} ${b.missions === 1 ? 'misión' : 'misiones'} · buen botín ${pct(b.good, b.good + b.bad)} · ${coinText(b.fivePoints)} monedas de jornada gastadas`,
-          `- ${b.missions} ${b.missions === 1 ? 'quest' : 'quests'} · good loot ${pct(b.good, b.good + b.bad)} · ${coinText(b.fivePoints)} shift coins spent`,
+          `- ${b.missions} ${b.missions === 1 ? 'misión' : 'misiones'} · buen botín ${pct(b.good, b.good + b.bad)} · ${isShift ? `${coinText(b.fivePoints)} monedas de jornada gastadas` : `${coinText(b.weekPoints)} monedas de semana gastadas`}`,
+          `- ${b.missions} ${b.missions === 1 ? 'quest' : 'quests'} · good loot ${pct(b.good, b.good + b.bad)} · ${isShift ? `${coinText(b.fivePoints)} shift coins spent` : `${coinText(b.weekPoints)} weekly coins spent`}`,
         ),
         ...(rows.length > 0
           ? [
@@ -2126,16 +2134,14 @@ export const register: Register = on => {
     // El tesoro del gremio: una línea por bolsa, con 🪙 y lo que queda.
     // Tocar una bolsa abre su detalle; el libro es un botón junto al título.
     // Lo que gastó esta sesión en la jornada: su parte de lo que subió la cuota (con varias sesiones, repartido).
-    const nowWindow = (() => {
-      const w = plan5.windows.find(x => x.kind === 'five_hour')
-      return w?.resetsAt ? windowKey(w.resetsAt) : null
-    })()
+    const mainWindow = primary(plan5.windows)
+    const nowWindow = mainWindow?.resetsAt ? windowKey(mainWindow.resetsAt) : null
     const myCoins = coinsOf(
       { key: sessionKey ?? '', cost: mySpend.key === nowWindow ? mySpend.cost : 0, windowKey: nowWindow },
       kingdom,
-      nowWindow ? ledger.fiveSeen?.[nowWindow] : undefined,
+      seenOf(ledger, plan5.windows, nowWindow),
     )
-    const pts = myCoins ?? plan5.sessionFive
+    const pts = myCoins ?? sessionPrimary(plan5)
     const coinsPerPurse = cols >= 36 ? 10 : 5
     const isRoomy = cols >= 50
     const five = plan5.windows.find(w => w.kind === 'five_hour')
@@ -2160,7 +2166,7 @@ export const register: Register = on => {
       const left = Math.max(0, 100 - w.percent)
       const filled = left > 0 ? Math.max(1, Math.round(left / (100 / coinsPerPurse))) : 0
       const when = refill(w)
-      const isWarn = w.kind === 'five_hour' && isShort
+      const isWarn = w.kind === mainWindow?.kind && isShort
       return (
         <Button plain key={`bolsa-${w.kind}`} onPress={() => togglePurse(w.kind)}>
           <Text>
@@ -2189,11 +2195,11 @@ export const register: Register = on => {
         )}
       </Box>
     )
-    const fiveWhen = five ? refill(five) : null
-    const fiveDetail =
-      five && openPurse === 'five_hour'
+    const fullDetail = (w: { kind: string; resetsAt: string | null }) => {
+      const when = refill(w)
+      return openPurse === w.kind
         ? detail([
-            (!isRoomy || isShort) && fiveWhen ? tr(`↻ se rellena en ${fiveWhen}`, `↻ refills in ${fiveWhen}`) : null,
+            (!isRoomy || isShort) && when ? tr(`↻ se rellena en ${when}`, `↻ refills in ${when}`) : null,
             rate === null
               ? tr('Midiendo cuánto gastas por hora…', 'Measuring how much you spend per hour…')
               : tr(
@@ -2207,12 +2213,17 @@ export const register: Register = on => {
                 )
               : null,
             savedPts >= 0.05 ? { good: tr(`El Código te ahorró ≈ ${coinText(savedPts)} frente a mandar ${cheap}`, `The Code saved you ≈ ${coinText(savedPts)} versus sending ${cheap}`) } : null,
+            ...(w.kind === 'seven_day' ? others.map(o => tr(`${kindLabel(o.kind)}: quedan ${Math.round(Math.max(0, 100 - o.percent))}`, `${kindLabel(o.kind)}: ${Math.round(Math.max(0, 100 - o.percent))} left`)) : []),
             tr('Cada 🪙 son 10 monedas (10 % del plan)', 'Each 🪙 is 10 coins (10 % of the plan)'),
           ])
         : null
+    }
+    const fiveDetail = five ? fullDetail(five) : null
     const weekWhen = week ? refill(week) : null
     const weekDetail =
-      week && openPurse === 'seven_day'
+      week && !five
+        ? fullDetail(week)
+        : week && openPurse === 'seven_day'
         ? detail([
             !isRoomy && weekWhen ? tr(`↻ se rellena en ${weekWhen}`, `↻ refills in ${weekWhen}`) : null,
             plan5.sessionWeek > 0 ? tr(`Esta sesión gastó ${coinText(plan5.sessionWeek)}`, `This session spent ${coinText(plan5.sessionWeek)}`) : null,
@@ -2360,7 +2371,10 @@ export const register: Register = on => {
         </Text>
         <Text dimColor>
           {ledger.missions} {ledger.missions === 1 ? tr('misión', 'quest') : tr('misiones', 'quests')} · {tr('buen botín', 'good loot')}{' '}
-          {pct(ledger.good, ledger.good + ledger.bad)} · {coinText(ledger.fivePoints)} {tr('monedas de jornada gastadas', 'shift coins spent')}
+          {pct(ledger.good, ledger.good + ledger.bad)} ·{' '}
+          {isShiftPlan(plan5.windows)
+            ? `${coinText(ledger.fivePoints)} ${tr('monedas de jornada gastadas', 'shift coins spent')}`
+            : `${coinText(ledger.weekPoints)} ${tr('monedas de semana gastadas', 'weekly coins spent')}`}
         </Text>
         <Text dimColor>
           {tr('Del oro gastado: Clawd', 'Of the gold spent: Clawd')} {shareText(ledger.masterCost)} · {tr('los aventureros', 'the adventurers')}{' '}

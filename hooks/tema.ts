@@ -41,9 +41,10 @@ function word(from: string, to: string): Rule[] {
   ]
 }
 
-/** Una frase tal cual (sin variar mayúsculas). */
+/** Una frase tal cual (sin variar mayúsculas), que no se pega a letras vecinas: «para Clawd» no es «a Clawd». */
 function phrase(from: string, to: string): Rule[] {
-  return [[new RegExp(from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), to]]
+  const safe = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return [[new RegExp(`(?<![\\p{L}\\p{N}])${safe}(?![\\p{L}\\p{N}])`, 'gu'), to]]
 }
 
 // Los iconos cambian igual en los dos idiomas.
@@ -103,6 +104,7 @@ const ES: Rule[] = [
   ...word('aventureros', 'programas'),
   ...word('aventurero', 'programa'),
   ...word('aventurera', 'programa'),
+  ...phrase('están en misión', 'están conectados'),
   ...phrase('en misión', 'conectado'),
   ...word('misiones', 'conexiones'),
   ...word('misión', 'conexión'),
@@ -199,11 +201,26 @@ const EN: Rule[] = [
 // del texto, tras un icono o tras un punto: «🔔 El Arquitecto terminó».
 const CAPITALIZE = /(^|[\p{Extended_Pictographic}\uFE0F]\s+|[.!?]\s+)(el Arquitecto|the Architect)/gu
 
+// Lo que parece un nombre de archivo, una ruta o una versión (libro.md, hooks/tema.ts, v0.9) no se toca.
+const KEEP = /\S*[\/.][\p{L}\p{N}_-]+\S*/gu
+
 /** El mismo texto contado en otro tema (hoy, solo «matrix» cambia algo). */
 export function recastAs(text: string, lang: Lang, to: Theme): string {
   if (to !== 'matrix') return text
-  let out = text
-  for (const [re, rep] of lang === 'en' ? EN : ES) out = out.replace(re, rep)
+  const rules = lang === 'en' ? EN : ES
+  const recastPart = (part: string) => {
+    let out = part
+    for (const [re, rep] of rules) out = out.replace(re, rep)
+    return out
+  }
+  // Se recuenta por tramos, saltando los nombres de archivo.
+  let out = ''
+  let last = 0
+  for (const m of text.matchAll(KEEP)) {
+    out += recastPart(text.slice(last, m.index)) + m[0]
+    last = (m.index ?? 0) + m[0].length
+  }
+  out += recastPart(text.slice(last))
   return out.replace(CAPITALIZE, (_m, lead: string, art: string) => `${lead}${art.charAt(0).toUpperCase()}${art.slice(1)}`)
 }
 

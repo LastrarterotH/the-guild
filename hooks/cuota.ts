@@ -17,6 +17,21 @@ const KIND_LABEL: Record<string, () => string> = {
   seven_day_sonnet: () => tr('7 días Sonnet', '7 days Sonnet'),
 }
 
+/** La ventana que manda: la de 5 h si el plan la tiene; si no, la semana (Ultra no tiene 5 h). */
+export function primary(windows: readonly { kind: string; percent: number; resetsAt: string | null }[]): { kind: string; percent: number; resetsAt: string | null } | null {
+  return windows.find(w => w.kind === 'five_hour') ?? windows.find(w => w.kind === 'seven_day') ?? null
+}
+
+/** Lo que esta sesión gastó de la ventana que manda. */
+export function sessionPrimary(q: GremioQuota): number {
+  return q.windows.some(w => w.kind === 'five_hour') ? q.sessionFive : q.sessionWeek
+}
+
+/** Si la ventana que manda es la de 5 h (y no la semana). */
+export function isShiftPlan(windows: readonly { kind: string }[]): boolean {
+  return windows.some(w => w.kind === 'five_hour')
+}
+
 export function kindLabel(kind: string): string {
   return KIND_LABEL[kind]?.() ?? kind.replace(/_/g, ' ')
 }
@@ -35,11 +50,13 @@ export function absorb(q: GremioQuota, limits: readonly Limit[], at: number): { 
   const curOf = (kind: string) => limits.find(l => l.kind === kind)
   const five = rise(prevOf('five_hour'), curOf('five_hour'))
   const week = rise(prevOf('seven_day'), curOf('seven_day'))
-  const nowFive = curOf('five_hour')?.percentUsed
-  const prevFive = prevOf('five_hour')?.percent
-  // Si la ventana de 5 h se reinició, el ritmo se mide de nuevo.
-  const isReset = nowFive !== undefined && prevFive !== undefined && nowFive < prevFive - 0.5
-  const samples = nowFive === undefined ? q.samples : [...(isReset ? [] : q.samples), { at, five: nowFive }].slice(-KEEP)
+  // El ritmo se mide sobre la ventana que manda (5 h, o la semana si el plan no tiene 5 h).
+  const mainKind = curOf('five_hour') ? 'five_hour' : 'seven_day'
+  const nowMain = curOf(mainKind)?.percentUsed
+  const prevMain = prevOf(mainKind)?.percent
+  // Si la ventana se reinició, el ritmo se mide de nuevo.
+  const isReset = nowMain !== undefined && prevMain !== undefined && nowMain < prevMain - 0.5
+  const samples = nowMain === undefined ? q.samples : [...(isReset ? [] : q.samples), { at, five: nowMain }].slice(-KEEP)
   return {
     quota: {
       windows: limits.map(l => ({ kind: l.kind, percent: l.percentUsed, resetsAt: l.resetsAt ?? null })),
@@ -52,7 +69,7 @@ export function absorb(q: GremioQuota, limits: readonly Limit[], at: number): { 
   }
 }
 
-/** Puntos de la ventana de 5 h por hora, medidos en la última hora; null con menos de 10 minutos. */
+/** Puntos de la ventana que manda por hora, medidos en la última hora; null con menos de 10 minutos. */
 export function ratePerHour(q: GremioQuota, now: number): number | null {
   const recent = q.samples.filter(s => now - s.at <= 60 * 60 * 1000)
   const first = recent[0]
@@ -63,9 +80,9 @@ export function ratePerHour(q: GremioQuota, now: number): number | null {
   return Math.max(0, (last.five - first.five) / hours)
 }
 
-/** Si al ritmo actual alcanza la ventana de 5 h hasta que se reinicie. */
+/** Si al ritmo actual alcanza la ventana que manda hasta que se reinicie. */
 export function forecast(q: GremioQuota, now: number): { isEnough: boolean; msToFull: number; msToReset: number } | null {
-  const w = q.windows.find(x => x.kind === 'five_hour')
+  const w = primary(q.windows)
   const rate = ratePerHour(q, now)
   if (!w || !w.resetsAt || rate === null || rate < 0.05) return null
   const msToReset = Date.parse(w.resetsAt) - now

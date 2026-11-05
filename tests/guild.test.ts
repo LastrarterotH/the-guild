@@ -7,6 +7,7 @@ import { epithet } from '../hooks/apodos'
 import { absorbQuota, addProjectSpend, projectShares } from '../hooks/libro'
 import { coinsOf, firstUserTexts, lastTitle, realmDetail, realmRow, realmSummary, talkingTo } from '../hooks/reino'
 import { classOf, describeTool, firstSentence, modelName } from '../hooks/describe'
+import { EMPTY_QUOTA, primary, sessionPrimary } from '../hooks/cuota'
 import { plan } from '../hooks/doctrine'
 import { langChoice, langFrom, setLang, tr } from '../hooks/i18n'
 import { rain, rainCells, recastAs, setTheme, themeChoice } from '../hooks/tema'
@@ -1385,4 +1386,25 @@ test('la Red muestra con quién conversa una sesión', () => {
 test('la lluvia usa solo caracteres de una celda', () => {
   const wide = [...rain(400, 3)].filter(ch => { const c = ch.codePointAt(0) ?? 0; return !(c < 0x7f || (c >= 0xff61 && c <= 0xff9f)) })
   expect(wide).toEqual([])
+})
+
+test('el glosario Matrix respeta bordes, siglas, plurales y nombres de archivo', () => {
+  const es = (t: string) => recastAs(t, 'es', 'matrix')
+  const en = (t: string) => recastAs(t, 'en', 'matrix')
+  expect(es('para Clawd')).toBe('para el Arquitecto')
+  expect(es('desde Clawd')).toBe('desde el Arquitecto')
+  expect(es('Los Pícaros están en misión')).toBe('Los Centinelas están conectados')
+  expect(es('📖 lee libro.md y hooks/libro.ts')).toBe('🧾 lee libro.md y hooks/libro.ts')
+  expect(en('PHP and HPC and HP')).toBe('PHP and HPC and signal')
+  expect(en('ran "send" in v0.9')).toBe('ran "jack in" in v0.9')
+})
+
+test('la ventana que manda es la de 5 h si existe, y si no la semana', () => {
+  const week = { kind: 'seven_day', percent: 52, resetsAt: '2026-11-10T00:00:00Z' }
+  const five = { kind: 'five_hour', percent: 10, resetsAt: '2026-11-05T20:00:00Z' }
+  expect(primary([week])?.kind).toBe('seven_day')
+  expect(primary([week, five])?.kind).toBe('five_hour')
+  expect(primary([])).toBeNull()
+  expect(sessionPrimary({ ...EMPTY_QUOTA, windows: [week], sessionFive: 3, sessionWeek: 7 })).toBe(7)
+  expect(sessionPrimary({ ...EMPTY_QUOTA, windows: [week, five], sessionFive: 3, sessionWeek: 7 })).toBe(3)
 })
