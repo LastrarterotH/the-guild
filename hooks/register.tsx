@@ -37,6 +37,7 @@ import {
   labelFromPrompt,
   lastTitle,
   markScript,
+  nameOf,
   notifyScript,
   others as otherSessions,
   REALM_FORGET_MS,
@@ -50,6 +51,7 @@ import {
   titleCommand,
   TTY_SCRIPT,
 } from './reino'
+import { shipFor } from './naves'
 import { ago, classOf, cut, describeTool, duration, firstSentence, modelName, tokens } from './describe'
 import { aliasOf, brief, classOfAlias, doctrineText, effortFor, isFable, plan, planFor, raise, setsLength } from './doctrine'
 import { CLASSIFIER_SYSTEM, classifierPrompt, flip, parseVerdict, promote, record, taskWord } from './experiencia'
@@ -170,6 +172,7 @@ const realmOpen = atom({ plugin: 'guild', key: 'realmOpen' } as const, false)
 const scrollHero = atom({ plugin: 'guild', key: 'scrollHero' } as const, null as string | null)
 const realmPicked = atom({ plugin: 'guild', key: 'realmPicked' } as const, null as string | null)
 const label = atom({ plugin: 'guild', key: 'label' } as const, '')
+const ship = atom({ plugin: 'guild', key: 'ship' } as const, '')
 const spend = atom({ plugin: 'guild', key: 'spend' } as const, { key: '', cost: 0 })
 const labelSource = atom({ plugin: 'guild', key: 'labelSource' } as const, '' as '' | 'manual' | 'title' | 'folder' | 'transcript' | 'prompt')
 const quota = atom({ plugin: 'guild', key: 'quota' } as const, EMPTY_QUOTA)
@@ -339,7 +342,7 @@ async function ownCoins($: EngineInterface): Promise<number | null> {
 /** Lo que esta sesión les cuenta a las demás. */
 async function ownEntry($: EngineInterface): Promise<GremioRealmEntry | null> {
   if (!sessionKey) return null
-  const [dm, list, name] = await Promise.all([read($, master), read($, heroes), read($, label)])
+  const [dm, list, name, vessel] = await Promise.all([read($, master), read($, heroes), read($, label), read($, ship)])
   const now = await $.clock.now()
   // Un permiso anotado que nunca se cerró (una consulta que no llegó a correr) se olvida.
   for (const [id, at] of asks) if (now - at > 30 * 60_000) asks.delete(id)
@@ -382,6 +385,7 @@ async function ownEntry($: EngineInterface): Promise<GremioRealmEntry | null> {
     doing: dm.isBusy && !isIdle(dm.doing) ? cut(dm.doing, 48) : null,
     program: termProgram,
     unsaved: isUnsaved || undefined,
+    ship: vessel || undefined,
   }
 }
 
@@ -407,7 +411,7 @@ async function goTo($: EngineInterface, entry: GremioRealmEntry): Promise<void> 
   try {
     const script = isGhostty(entry.program) ? ghosttyFocusScript(entry.label) : focusScript(entry.ttys ?? [], entry.label)
     const r = await $.process.run(['osascript', '-e', script], { timeoutMs: 8000 })
-    if (r.stdout.trim() !== 'ok') $.ui.toast(tr(`No encontré la pestaña de ${entry.label} en Terminal`, `Couldn't find the tab for ${entry.label} in Terminal`))
+    if (r.stdout.trim() !== 'ok') $.ui.toast(tr(`No encontré la pestaña de ${nameOf(entry)} en Terminal`, `Couldn't find the tab for ${nameOf(entry)} in Terminal`))
   } catch {
     $.ui.toast(tr('No pude pedirle a Terminal que cambie de pestaña', "Couldn't ask Terminal to switch tabs"))
   }
@@ -431,7 +435,7 @@ async function notifyIfWaiting($: EngineInterface, own: GremioRealmEntry): Promi
   if (notifiedAsk === own.since || own.at - own.since < 60_000) return
   notifiedAsk = own.since
   try {
-    await $.process.run(['osascript', '-e', notifyScript(`${tr('Gremio', 'Guild')} · ${own.label}`, `${own.label} ${own.ask ?? tr('te pide algo', 'needs you')}`)], {
+    await $.process.run(['osascript', '-e', notifyScript(`${tr('Gremio', 'Guild')} · ${nameOf(own)}`, `${nameOf(own)} ${own.ask ?? tr('te pide algo', 'needs you')}`)], {
       timeoutMs: 5000,
     })
   } catch {
@@ -1063,6 +1067,13 @@ export const register: Register = on => {
         .run(['/bin/sh', '-c', TTY_SCRIPT], { timeoutMs: 3000 })
         .then(r => cleanTtys(r.stdout))
         .catch(() => [])
+      // Su nave de Zion: la que le toca por su id, salvo que otra sesión viva ya la lleve.
+      if (!(await read($, ship))) {
+        const fleet = await read($, realm)
+        const taken = otherSessions(fleet, sessionKey, await $.clock.now()).map(k => k.ship).filter((v): v is string => Boolean(v))
+        const mine = shipFor(sessionKey, taken)
+        await update($, ship, () => mine)
+      }
       const byFolder = labelFromCwd(sessionFolder, sessionHome)
       const source = await read($, labelSource)
       if (byFolder && source !== 'manual' && source !== 'title') {
@@ -2391,7 +2402,7 @@ export const register: Register = on => {
                 </Text>
                 <Text dimColor>
                   {' '}
-                  · {r.label} · {shortSince(now - (r.bell?.at ?? now))} · {tr('🚪 ir', '🚪 go')}
+                  · {nameOf(r)} · {shortSince(now - (r.bell?.at ?? now))} · {tr('🚪 ir', '🚪 go')}
                 </Text>
               </Text>
             </Button>
@@ -2406,7 +2417,7 @@ export const register: Register = on => {
           {askingNow.map(r => (
             <Button plain key={`ir-pide-${r.key}`} onPress={() => goTo($, r)}>
               <Text color={CLASS_COLOR.maestro} wrap="truncate-end">
-                ❓ {r.label} {r.ask ?? tr('te pide algo', 'needs you')} · {shortSince(now - r.since)}
+                ❓ {nameOf(r)} {r.ask ?? tr('te pide algo', 'needs you')} · {shortSince(now - r.since)}
                 <Text dimColor> · {tr('🚪 ir', '🚪 go')}</Text>
               </Text>
             </Button>

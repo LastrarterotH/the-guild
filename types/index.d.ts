@@ -192,6 +192,8 @@ export type GremioRealmEntry = {
   doing?: string | null
   /** La terminal que la corre (TERM_PROGRAM): Apple_Terminal, ghostty, iTerm.app… */
   program?: string | null
+  /** Su nave de Zion (el nombre con que se la ve en el tema Matrix). */
+  ship?: string
   /** No guarda la conversación (heredó la marca de sesión hija). */
   unsaved?: boolean
 }
@@ -243,6 +245,8 @@ declare module 'claude-code' {
       realmPicked: string | null
       /** El nombre corto de esta sesión en el reino. */
       label: string
+      /** Su nave de Zion (cómo se llama en el tema Matrix); se elige al abrir la sesión. */
+      ship: string
       /** Lo que gastó esta sesión en la ventana de 5 h en curso (dólares de la API, estimado). */
       spend: { key: string; cost: number }
       /** De dónde salió el nombre: tú, la carpeta, la conversación o el primer pedido visto. */

@@ -4,6 +4,8 @@
 
 import type { GremioRealmEntry, GremioRealmState } from '../types'
 import { tr } from './i18n'
+import { shipFor } from './naves'
+import { theme } from './tema'
 
 /** Un latido más viejo que esto ya no cuenta (la sesión se cerró o se colgó). */
 export const REALM_FRESH_MS = 3 * 60_000
@@ -54,7 +56,7 @@ export function realmWord(e: GremioRealmEntry, now: number): string {
 export function others(entries: readonly GremioRealmEntry[], ownKey: string, now: number): GremioRealmEntry[] {
   return entries
     .filter(e => e.key !== ownKey && !e.closed && now - e.at < REALM_FRESH_MS)
-    .sort((a, b) => ORDER[a.state] - ORDER[b.state] || a.label.localeCompare(b.label))
+    .sort((a, b) => ORDER[a.state] - ORDER[b.state] || nameOf(a).localeCompare(nameOf(b)))
 }
 
 /** El nombre por la carpeta, salvo que sea la carpeta de inicio (ahí no dice nada). */
@@ -141,9 +143,14 @@ export function shortSince(ms: number): string {
   return `${Math.floor(m / 60)} h`
 }
 
+/** Cómo se llama una sesión en el panel: en la Matrix, su nave de Zion; si no, su nombre. */
+export function nameOf(e: Pick<GremioRealmEntry, 'key' | 'label' | 'ship'>): string {
+  return theme() === 'matrix' ? e.ship || shipFor(e.key) : e.label
+}
+
 /** Una fila del reino abierto: estado, nombre, hace cuánto, vida, parte de la jornada y lo pendiente. */
 export function realmRow(e: GremioRealmEntry, now: number, isOwn: boolean): string {
-  const name = `${isOwn ? '● ' : ''}${e.label}`.slice(0, 16).padEnd(16)
+  const name = `${isOwn ? '● ' : ''}${nameOf(e)}`.slice(0, 16).padEnd(16)
   const parts = [
     `${REALM_ICON[e.state]} ${name}`,
     shortSince(now - e.since).padStart(6),
@@ -167,6 +174,8 @@ export const TALK_MS = 10 * 60_000
 export function realmDetail(e: GremioRealmEntry, home: string | null, now = Date.now()): string[] {
   const lines: string[] = []
   if (e.ask) lines.push(e.ask)
+  // En la Matrix la fila dice la nave; aquí, de qué se trata.
+  if (nameOf(e) !== e.label) lines.push(e.label)
   const talk = talkingTo(e, now)
   if (talk.length > 0) lines.push(tr(`💬 conversa con ${talk.join(', ')}`, `💬 talking with ${talk.join(', ')}`))
   else if (e.last) lines.push(tr(`lo último: ${e.last}`, `last: ${e.last}`))
@@ -179,7 +188,7 @@ export function realmSummary(e: GremioRealmEntry, now: number): string {
   const extra = e.state === 'asking' ? ` ${shortSince(now - e.since)}` : e.life !== null && e.life <= 20 ? ` ♥ ${Math.round(e.life)}` : ''
   const talk = talkingTo(e, now)
   const doing = e.state === 'working' && e.doing ? ` ${e.doing.length > 22 ? `${e.doing.slice(0, 21)}…` : e.doing}` : ''
-  return `${e.label} ${REALM_ICON[e.state]}${extra}${doing}${talk.length > 0 ? ` 💬→${talk[0]}` : ''}`
+  return `${nameOf(e)} ${REALM_ICON[e.state]}${extra}${doing}${talk.length > 0 ? ` 💬→${talk[0]}` : ''}`
 }
 
 /** Sube por los procesos padres y anota cada terminal que encuentra (la pestaña es una de ellas). */

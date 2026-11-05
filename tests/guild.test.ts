@@ -12,6 +12,8 @@ import { plan } from '../hooks/doctrine'
 import { langChoice, langFrom, setLang, tr } from '../hooks/i18n'
 import { rain, rainCells, recastAs, setTheme, themeChoice } from '../hooks/tema'
 import { OLD_STORE, pickImport } from '../hooks/migrar'
+import { SHIPS, shipFor } from '../hooks/naves'
+import { nameOf } from '../hooks/reino'
 import { CELLS, spriteCells, spriteGrid } from '../hooks/sprites'
 
 const PANE = {
@@ -1431,6 +1433,36 @@ test('Ghostty: el guion de pestaña y la orden de título', () => {
   expect(cmd[0]).toBe('sh')
   expect(cmd.at(-1)).toBe('ttys004')
   expect(cmd.at(-2)).toBe('🔔 Recetario')
+})
+
+test('las naves de Zion: estables por sesión, sin repetirse entre las vivas', () => {
+  const a = shipFor('sesion-a')
+  expect(SHIPS).toContain(a)
+  expect(shipFor('sesion-a')).toBe(a)
+  const b = shipFor('sesion-b', [a])
+  expect(b).not.toBe(a)
+  expect(SHIPS).toContain(b)
+  // Con toda la flota ocupada, repite la suya con un número.
+  expect(shipFor('sesion-a', [...SHIPS])).toBe(`${a} 2`)
+  expect(shipFor('sesion-a', [...SHIPS, `${a} 2`])).toBe(`${a} 3`)
+})
+
+test('en la Matrix la Red nombra las sesiones por su nave; en el gremio, por su nombre', () => {
+  const now = 1_000_000
+  const e = { key: 'a', label: 'Recetario', ship: 'Logos', state: 'working', since: now, running: 0, life: 50, at: now } as GremioRealmEntry
+  expect(nameOf(e)).toBe('Recetario')
+  expect(realmDetail(e, null, now)).not.toContain('Recetario')
+  setTheme('matrix')
+  try {
+    expect(nameOf(e)).toBe('Logos')
+    expect(realmSummary(e, now)).toBe('Logos ⏳')
+    expect(realmRow(e, now, false)).toContain('Logos')
+    expect(realmDetail(e, null, now)).toContain('Recetario')
+    // Una sesión vieja sin nave anotada recibe la que le toca por su id.
+    expect(SHIPS).toContain(nameOf({ key: 'x', label: 'Faro' }))
+  } finally {
+    setTheme('guild')
+  }
 })
 
 test('la Red muestra la acción en curso de una sesión que trabaja', () => {
