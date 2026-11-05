@@ -2104,7 +2104,7 @@ export const register: Register = on => {
           <Box gap={2}>
             <Button plain key="sel-maestro" onPress={() => select('maestro')}>
               <Text bold color={CLASS_COLOR.maestro}>
-                {picked === 'maestro' ? '▾ ' : ''}👑 {tr('GRAN MAESTRE', 'GRAND MASTER')}
+                {picked === 'maestro' ? '▾ ' : ''}{tr('👑 GRAN MAESTRE', '👑 GRAND MASTER')}
               </Text>
             </Button>
             {toggles}
