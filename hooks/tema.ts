@@ -212,7 +212,8 @@ export function recast(text: string, lang: Lang): string {
 
 // La lluvia de la Matrix: una línea de katakana de media anchura y dígitos,
 // distinta en cada columna y que cambia con el reloj del panel.
-const RAIN = 'ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789Z:・=*+-<>¦|'
+// Solo caracteres de una celda: katakana de media anchura (U+FF71…), dígitos y signos ASCII.
+const RAIN = 'ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789Z:=*+-<>|'
 
 /** `width` caracteres de lluvia para el cuadro `frame` (vacíos donde no cae nada). */
 export function rain(width: number, frame: number): string {

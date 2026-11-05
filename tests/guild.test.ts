@@ -1381,3 +1381,8 @@ test('la Red muestra con quién conversa una sesión', () => {
   expect(realmRow(e, now, false)).toContain('💬→Faro')
   expect(realmDetail(e, null, now)).toContain('💬 conversa con Faro')
 })
+
+test('la lluvia usa solo caracteres de una celda', () => {
+  const wide = [...rain(400, 3)].filter(ch => { const c = ch.codePointAt(0) ?? 0; return !(c < 0x7f || (c >= 0xff61 && c <= 0xff9f)) })
+  expect(wide).toEqual([])
+})
