@@ -1,6 +1,6 @@
 {
   "name": "guild",
-  "version": "0.22.0",
+  "version": "0.22.1",
   "description": "The Guild: Clawd is the Grand Master and every agent is an adventurer (Rogue, Bard, Mage, Archmage) in a live pixel-art panel, with sounds and a Guild Code that picks each agent's model and effort. Speaks English and Spanish, and can be retold inside the Matrix (the Architect, Sentinels, Agents, the Oracle and Neo).",
   "types": "./types/index.d.ts"
 }
