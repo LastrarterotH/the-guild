@@ -48,7 +48,7 @@ Un mod para Claude Code. Clawd es el **Gran Maestre** del gremio (tu sesión pri
 
 ## Temas
 
-El mismo gremio se puede contar dentro de **la Matrix**: `/gremio tema matrix`. No cambia nada de cómo funciona (el Código, el tesoro, el reino, el libro), solo la historia, el pixel art, los colores y los sonidos. `/gremio tema gremio` devuelve a Clawd; la elección se recuerda entre sesiones.
+El mismo gremio se puede contar dentro de **la Matrix**: `/guild tema matrix`. No cambia nada de cómo funciona (el Código, el tesoro, el reino, el libro), solo la historia, el pixel art, los colores y los sonidos. `/guild tema gremio` devuelve a Clawd; la elección se recuerda entre sesiones.
 
 | Gremio | Matrix | Modelo |
 |---|---|---|
@@ -68,6 +68,7 @@ Las misiones pasan a ser conexiones (un programa se conecta y se desconecta al t
 - `/guild cerrar` cierra el panel (`close`).
 - `/guild nombre <texto>` le pone nombre a esta sesión en el reino (si no, se nombra por su carpeta o por sus primeros pedidos) (`name <text>`).
 - `/guild idioma en|es|auto` cambia el idioma del gremio (`language en|es|auto`).
+- `/guild tema matrix|gremio` cuenta el gremio dentro de la Matrix, o lo devuelve (`theme matrix|guild`).
 
 Los subcomandos se aceptan en español y en inglés.
 
