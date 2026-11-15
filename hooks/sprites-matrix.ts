@@ -1,4 +1,4 @@
-// Pixel art del tema Matrix: el Arquitecto y sus programas. Mismas reglas que
+// Pixel art de la Matrix: el Arquitecto y sus programas. Mismas reglas que
 // sprites.ts: cada celda de la terminal son 2x2 píxeles con a lo más dos colores
 // (contando el vacío), así que todo se dibuja por bloques de dos.
 

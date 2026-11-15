@@ -1,12 +1,12 @@
 # Prepara los retratos de la Matrix para el panel: recorta cada imagen de GPT a la
 # proporción del hueco (18 columnas x 10 filas ≈ 0,9), la reduce y genera las
 # variantes «reposo» (desteñida, para el Constructo) y «caído» (gris).
-# Uso: python3 tools/retratos.py origen/matrix-<clase>.png ...   → art/matrix/<clase>[-reposo|-caido].png
+# Uso: python3 tools/retratos.py origen/matrix-<clase>.png ...   → art/<clase>[-reposo|-caido].png
 import sys
 from pathlib import Path
 from PIL import Image, ImageEnhance, ImageOps
 
-OUT = Path(__file__).resolve().parent.parent / 'art' / 'matrix'
+OUT = Path(__file__).resolve().parent.parent / 'art'
 W, H = 432, 480  # 0,9 de proporción, 3x del hueco en Ghostty (144 x 160)
 
 for src in sys.argv[1:]:

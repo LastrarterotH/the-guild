@@ -1,6 +1,6 @@
-// Pinta los sprites del gremio tal como los dibuja la terminal (celdas 1:2,
+// Pinta los sprites de los programas tal como los dibuja la terminal (celdas 1:2,
 // cuadrantes, dos colores por celda) y los guarda como PNG para revisarlos.
-// Uso: [GUILD_THEME=matrix] node tools/ver-sprites.mjs [ruta/a/sprites.ts] [salida.png] [escala]
+// Uso: node tools/ver-sprites.mjs [ruta/a/sprites.ts] [salida.png] [escala]
 import { execFileSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -11,18 +11,13 @@ register('./resolver-ts.mjs', import.meta.url)
 
 const [, , spritesArg = 'hooks/sprites.ts', outArg = '.vista/sprites.png', scaleArg = '2'] = process.argv
 const { spriteCells, CELLS } = await import(pathToFileURL(resolve(spritesArg)).href)
-// GUILD_THEME=matrix pinta los del tema Matrix.
-if (process.env.GUILD_THEME) {
-  const { setTheme } = await import(pathToFileURL(resolve(spritesArg, '..', 'tema.ts')).href)
-  setTheme(process.env.GUILD_THEME)
-}
 const QUAD = [' ', '▘', '▝', '▀', '▖', '▌', '▞', '▛', '▗', '▚', '▐', '▜', '▄', '▙', '▟', '█']
 const K = Number(scaleArg)
 const CW = 8 * K
 const CH = 16 * K
 const BANDS = [[0x1e, 0x1f, 0x29], [0xf4, 0xf1, 0xea]]
 const CLASSES = ['maestro', 'archimago', 'mago', 'bardo', 'picaro']
-// Cada fila: una clase en grande (y cansada), chica, caminando, mini, mini desteñida (taberna) y caída.
+// Cada fila: una clase en grande (y cansada), chica, caminando, mini, mini desteñida (Constructo) y caída.
 const items = [['big', 'quieto'], ['big', 'cansado'], ['big', 'durmiendo'], ['small', 'quieto'], ['small', 'marcha'], ['mini', 'quieto'], ['mini', 'quieto', true], ['small', 'caido']]
 const gap = 2
 const rowCols = items.reduce((s, [z]) => s + CELLS[z].columns + gap, gap)

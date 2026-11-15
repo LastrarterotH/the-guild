@@ -60,14 +60,13 @@ import { addUsage, costOf, totalTokens, usageFrom } from './oro'
 import { CELLS, CLASS_COLOR, CLASS_LABEL, CLASS_LEVEL, CLASS_PLURAL, spriteCells } from './sprites'
 import type { Pose, Size } from './sprites'
 import { lang, langChoice, langFrom, setLang, tr } from './i18n'
-import type { Theme } from './tema'
-import { rainCells, recastAs, setTheme, theme, themeChoice } from './tema'
+import { rainCells } from './tema'
 import type { Lang } from './i18n'
-import { OLD_STORE, pickImport } from './migrar'
+import { OLD_STORE, OLD_STORES, pickImport } from './migrar'
 
-const PANE = 'guild'
+const PANE = 'operator'
 // El pergamino: el botín completo en un panel aparte.
-const SCROLL = 'guild-scroll'
+const SCROLL = 'operator-scroll'
 const SLOT = 15
 // Con pocos en el campo, salen en grande (18 celdas de ancho más el margen).
 const BIG_SLOT = 20
@@ -79,13 +78,15 @@ const LOW_LIFE = 20
 const RETURN_MS = 6000
 // Sin acciones ni herramientas en curso por este tiempo, un aventurero se ve «quieto».
 const QUIET_MS = 5 * 60 * 1000
-const idle = () => tr('esperando una nueva misión', 'waiting for a new quest')
-// Lo que quedó guardado como «quieto» puede estar en cualquiera de los dos idiomas y temas.
-const IDLE_TEXTS = new Set(
-  (['es', 'en'] as const).flatMap(l =>
-    (['guild', 'matrix'] as const).map(t => recastAs(l === 'en' ? 'waiting for a new quest' : 'esperando una nueva misión', l, t)),
-  ),
-)
+const idle = () => tr('esperando una nueva conexión', 'waiting for a new connection')
+// Lo que quedó guardado como «quieto» puede estar en cualquiera de los dos idiomas
+// (y, de versiones anteriores, en el texto viejo).
+const IDLE_TEXTS = new Set([
+  'esperando una nueva conexión',
+  'waiting for a new connection',
+  'esperando una nueva misión',
+  'waiting for a new quest',
+])
 const isIdle = (doing: string) => IDLE_TEXTS.has(doing)
 // «un Mago» / «an Archmage».
 const aOrAn = (word: string) => (/^[AEIOU]/i.test(word) ? `an ${word}` : `a ${word}`)
@@ -110,19 +111,19 @@ const EFFORT_WORD: Record<GremioEffort, string> = {
 
 const CLASS_SHORT: Record<GremioClass, string> = {
   get maestro() {
-    return tr('Maestre', 'Master')
+    return tr('Arquitecto', 'Architect')
   },
   get archimago() {
-    return tr('Archi', 'Archi')
+    return tr('Neo', 'Neo')
   },
   get mago() {
-    return tr('Mago', 'Mage')
+    return tr('Oráculo', 'Oracle')
   },
   get bardo() {
-    return tr('Bardo', 'Bard')
+    return tr('Agente', 'Agent')
   },
   get picaro() {
-    return tr('Pícaro', 'Rogue')
+    return tr('Centinela', 'Sentinel')
   },
 }
 
@@ -149,33 +150,33 @@ const EMPTY_BOOK: GremioBook = {
 }
 const CLASSIFIER = 'claude-haiku-5-5'
 
-const heroes = atom({ plugin: 'guild', key: 'heroes' } as const, [] as GremioHero[])
-const master = atom({ plugin: 'guild', key: 'master' } as const, RESTING)
-const selected = atom({ plugin: 'guild', key: 'selected' } as const, null as string | null)
-const log = atom({ plugin: 'guild', key: 'log' } as const, [] as GremioLogEntry[])
-const counters = atom({ plugin: 'guild', key: 'counters' } as const, {} as Record<string, number>)
-const doctrine = atom({ plugin: 'guild', key: 'doctrine' } as const, true)
-const sound = atom({ plugin: 'guild', key: 'sound' } as const, true)
-const expanded = atom({ plugin: 'guild', key: 'expanded' } as const, null as string | null)
-const treasury = atom({ plugin: 'guild', key: 'treasury' } as const, EMPTY_TREASURY)
-const book = atom({ plugin: 'guild', key: 'book' } as const, EMPTY_BOOK)
-const bookOpen = atom({ plugin: 'guild', key: 'bookOpen' } as const, false)
-const purseOpen = atom({ plugin: 'guild', key: 'purseOpen' } as const, null as string | null)
-const lifeOpen = atom({ plugin: 'guild', key: 'lifeOpen' } as const, false)
-const lifeWarned = atom({ plugin: 'guild', key: 'lifeWarned' } as const, false)
-const cardMore = atom({ plugin: 'guild', key: 'cardMore' } as const, false)
-const chronicleOpen = atom({ plugin: 'guild', key: 'chronicleOpen' } as const, false)
-const tavernOpen = atom({ plugin: 'guild', key: 'tavernOpen' } as const, false)
-const day = atom({ plugin: 'guild', key: 'day' } as const, '')
-const realm = atom({ plugin: 'guild', key: 'realm' } as const, [] as GremioRealmEntry[])
-const realmOpen = atom({ plugin: 'guild', key: 'realmOpen' } as const, false)
-const scrollHero = atom({ plugin: 'guild', key: 'scrollHero' } as const, null as string | null)
-const realmPicked = atom({ plugin: 'guild', key: 'realmPicked' } as const, null as string | null)
-const label = atom({ plugin: 'guild', key: 'label' } as const, '')
-const ship = atom({ plugin: 'guild', key: 'ship' } as const, '')
-const spend = atom({ plugin: 'guild', key: 'spend' } as const, { key: '', cost: 0 })
-const labelSource = atom({ plugin: 'guild', key: 'labelSource' } as const, '' as '' | 'manual' | 'title' | 'folder' | 'transcript' | 'prompt')
-const quota = atom({ plugin: 'guild', key: 'quota' } as const, EMPTY_QUOTA)
+const heroes = atom({ plugin: 'operator', key: 'heroes' } as const, [] as GremioHero[])
+const master = atom({ plugin: 'operator', key: 'master' } as const, RESTING)
+const selected = atom({ plugin: 'operator', key: 'selected' } as const, null as string | null)
+const log = atom({ plugin: 'operator', key: 'log' } as const, [] as GremioLogEntry[])
+const counters = atom({ plugin: 'operator', key: 'counters' } as const, {} as Record<string, number>)
+const doctrine = atom({ plugin: 'operator', key: 'doctrine' } as const, true)
+const sound = atom({ plugin: 'operator', key: 'sound' } as const, true)
+const expanded = atom({ plugin: 'operator', key: 'expanded' } as const, null as string | null)
+const treasury = atom({ plugin: 'operator', key: 'treasury' } as const, EMPTY_TREASURY)
+const book = atom({ plugin: 'operator', key: 'book' } as const, EMPTY_BOOK)
+const bookOpen = atom({ plugin: 'operator', key: 'bookOpen' } as const, false)
+const purseOpen = atom({ plugin: 'operator', key: 'purseOpen' } as const, null as string | null)
+const lifeOpen = atom({ plugin: 'operator', key: 'lifeOpen' } as const, false)
+const lifeWarned = atom({ plugin: 'operator', key: 'lifeWarned' } as const, false)
+const cardMore = atom({ plugin: 'operator', key: 'cardMore' } as const, false)
+const chronicleOpen = atom({ plugin: 'operator', key: 'chronicleOpen' } as const, false)
+const tavernOpen = atom({ plugin: 'operator', key: 'tavernOpen' } as const, false)
+const day = atom({ plugin: 'operator', key: 'day' } as const, '')
+const realm = atom({ plugin: 'operator', key: 'realm' } as const, [] as GremioRealmEntry[])
+const realmOpen = atom({ plugin: 'operator', key: 'realmOpen' } as const, false)
+const scrollHero = atom({ plugin: 'operator', key: 'scrollHero' } as const, null as string | null)
+const realmPicked = atom({ plugin: 'operator', key: 'realmPicked' } as const, null as string | null)
+const label = atom({ plugin: 'operator', key: 'label' } as const, '')
+const ship = atom({ plugin: 'operator', key: 'ship' } as const, '')
+const spend = atom({ plugin: 'operator', key: 'spend' } as const, { key: '', cost: 0 })
+const labelSource = atom({ plugin: 'operator', key: 'labelSource' } as const, '' as '' | 'manual' | 'title' | 'folder' | 'transcript' | 'prompt')
+const quota = atom({ plugin: 'operator', key: 'quota' } as const, EMPTY_QUOTA)
 
 const WRITE_TOOLS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
 // Herramientas que esperan tu respuesta.
@@ -237,12 +238,12 @@ const RAIN_ROWS = 5
 // Su propio cuadro: cae aunque no haya sprites que animar (con retratos no los hay).
 let rainFrame = 0
 
-// El reloj de la lluvia: corre solo con el panel abierto en tema Matrix.
+// El reloj de la lluvia: corre solo con el panel abierto.
 let rainClock: { cancel(): void } | null = null
 
 /** Un cuadro de la lluvia digital: cae todo el rato mientras el panel esté abierto. */
 function rainTick($: EngineInterface): void {
-  if (!isPaneUp || rainCols === 0 || theme() !== 'matrix') {
+  if (!isPaneUp || rainCols === 0) {
     stopRain()
     return
   }
@@ -251,7 +252,7 @@ function rainTick($: EngineInterface): void {
 }
 
 function startRain($: EngineInterface): void {
-  if (rainClock || theme() !== 'matrix') return
+  if (rainClock) return
   rainClock = $.clock.every(120, () => rainTick($))
 }
 
@@ -291,7 +292,7 @@ function tick($: EngineInterface): void {
 const GAIN: Partial<Record<SoundName, number>> = { maestro: 0.7 }
 
 function play($: EngineInterface, name: SoundName): void {
-  void $.audio.play({ asset: `sounds/${theme() === 'matrix' ? 'matrix/' : ''}${name}.wav` }, { gain: GAIN[name] ?? 1 }).catch(() => undefined)
+  void $.audio.play({ asset: `sounds/${name}.wav` }, { gain: GAIN[name] ?? 1 }).catch(() => undefined)
 }
 
 async function chime($: EngineInterface, name: SoundName): Promise<void> {
@@ -307,8 +308,8 @@ async function note($: EngineInterface, text: string, heroId?: string): Promise<
 function statusText(life: number | null, purse: number | null, running: number, isCode: boolean, asking: readonly string[] = []): string | undefined {
   const parts = [
     life === null ? null : `♥ ${Math.round(life)}`,
-    purse === null ? null : tr(`🪙 ${Math.round(purse)}`, `🪙 ${Math.round(purse)}`),
-    running > 0 ? tr(`🧭 ${running}`, `🧭 ${running}`) : null,
+    purse === null ? null : tr(`🔋 ${Math.round(purse)}`, `🔋 ${Math.round(purse)}`),
+    running > 0 ? tr(`🔌 ${running}`, `🔌 ${running}`) : null,
     isCode ? null : tr('📜✗ sin Código', '📜✗ no Code'),
     asking.length > 0 ? `❓ ${asking.join(', ')}` : null,
     isUnsaved ? tr('⚠️ sin guardar', '⚠️ unsaved') : null,
@@ -459,7 +460,7 @@ async function notifyIfWaiting($: EngineInterface, own: GremioRealmEntry): Promi
   if (notifiedAsk === own.since || own.at - own.since < 60_000) return
   notifiedAsk = own.since
   try {
-    await $.process.run(['osascript', '-e', notifyScript(`${tr('Gremio', 'Guild')} · ${nameOf(own)}`, `${nameOf(own)} ${own.ask ?? tr('te pide algo', 'needs you')}`)], {
+    await $.process.run(['osascript', '-e', notifyScript(`${tr('Operador', 'Operator')} · ${nameOf(own)}`, `${nameOf(own)} ${own.ask ?? tr('te pide algo', 'needs you')}`)], {
       timeoutMs: 5000,
     })
   } catch {
@@ -572,7 +573,7 @@ async function ring($: EngineInterface, icon: string, text: string, isMain: bool
       const tty = sessionTtys[0]
       if (tty) await $.process.run(titleCommand(tty, `${icon} ${name}`), { timeoutMs: 3000 })
     } else if (name) await $.process.run(['osascript', '-e', markScript(name, icon)], { timeoutMs: 5000 })
-    if (turnMs >= 20_000) await $.process.run(['osascript', '-e', notifyScript(`${tr('Gremio', 'Guild')} · ${name ?? tr('sesión', 'session')}`, text)], { timeoutMs: 5000 })
+    if (turnMs >= 20_000) await $.process.run(['osascript', '-e', notifyScript(`${tr('Operador', 'Operator')} · ${name ?? tr('sesión', 'session')}`, text)], { timeoutMs: 5000 })
   } catch {
     // Sin marca ni aviso; el sonido ya sonó.
   }
@@ -615,14 +616,14 @@ async function resumable($: EngineInterface): Promise<{ block: string; sig: stri
   const lines = fresh.map(
     u =>
       tr(
-        `- ${u.name}${u.epithet ? `, ${u.epithet}` : ''} (${aliasOf(u.modelId) ?? u.model} · id ${u.id}): «${u.description}», volvió ${ago(now - (u.endedAt ?? now))}`,
-        `- ${u.name}${u.epithet ? `, ${u.epithet}` : ''} (${aliasOf(u.modelId) ?? u.model} · id ${u.id}): "${u.description}", came back ${ago(now - (u.endedAt ?? now))}`,
+        `- ${u.name}${u.epithet ? `, ${u.epithet}` : ''} (${aliasOf(u.modelId) ?? u.model} · id ${u.id}): «${u.description}», se desconectó ${ago(now - (u.endedAt ?? now))}`,
+        `- ${u.name}${u.epithet ? `, ${u.epithet}` : ''} (${aliasOf(u.modelId) ?? u.model} · id ${u.id}): "${u.description}", unplugged ${ago(now - (u.endedAt ?? now))}`,
       ),
   )
   const block = [
     tr(
-      '[Gremio] Aventureros en la taberna que puedes retomar con su memoria (SendMessage, to: su id) si lo nuevo sigue lo que hicieron; si es otra cosa, envía uno nuevo:',
-      '[Guild] Adventurers in the tavern you can resume with their memory (SendMessage, to: their id) if the new work continues what they did; if it is something else, send a new one:',
+      '[Operador] Programas en el Constructo que puedes retomar con su memoria (SendMessage, to: su id) si lo nuevo sigue lo que hicieron; si es otra cosa, conecta uno nuevo:',
+      '[Operator] Programs in the Construct you can resume with their memory (SendMessage, to: their id) if the new work continues what they did; if it is something else, jack in a new one:',
     ),
     ...lines,
   ].join('\n')
@@ -630,7 +631,7 @@ async function resumable($: EngineInterface): Promise<{ block: string; sig: stri
 }
 
 // Lo que apagaste (sonido, Código) y el idioma que elegiste se recuerdan entre sesiones.
-type Settings = { sound: boolean; doctrine: boolean; language?: Lang; theme?: Theme }
+type Settings = { sound: boolean; doctrine: boolean; language?: Lang }
 
 async function savedSettings($: EngineInterface): Promise<Partial<Settings>> {
   const saved = await $.store.get('ajustes')
@@ -656,7 +657,7 @@ async function loadSettings($: EngineInterface): Promise<void> {
   }
 }
 
-/** El idioma de la sesión: el que elegiste con `/guild language`, o el de Claude Code, o el del sistema. */
+/** El idioma de la sesión: el que elegiste con `/operator language`, o el de Claude Code, o el del sistema. */
 async function pickLanguage($: EngineInterface): Promise<void> {
   try {
     const chosen = (await savedSettings($)).language
@@ -677,25 +678,6 @@ async function pickLanguage($: EngineInterface): Promise<void> {
   }
 }
 
-/** El tema de la sesión: el que elegiste con `/guild theme`, o el gremio de siempre. */
-async function pickTheme($: EngineInterface): Promise<void> {
-  try {
-    const chosen = (await savedSettings($)).theme
-    setTheme(chosen === 'matrix' ? 'matrix' : 'guild')
-  } catch {
-    // Queda el tema que había.
-  }
-}
-
-/** Guarda el tema elegido. */
-async function saveTheme($: EngineInterface, choice: Theme): Promise<void> {
-  try {
-    await $.store.set('ajustes', { ...(await savedSettings($)), theme: choice })
-  } catch {
-    // Vale para esta sesión.
-  }
-}
-
 /** Guarda el idioma elegido; null vuelve a seguir a Claude Code. */
 async function saveLanguage($: EngineInterface, choice: Lang | null): Promise<void> {
   try {
@@ -707,8 +689,9 @@ async function saveLanguage($: EngineInterface, choice: Lang | null): Promise<vo
 }
 
 /**
- * El plugin se llamaba «gremio»: la primera vez que corre como «guild» trae del
- * almacén viejo el libro, la experiencia y los ajustes (una sola vez).
+ * El plugin se llamó «gremio» y después «guild»: la primera vez que corre como
+ * «operator» trae del almacén viejo con más historia el libro, la experiencia y
+ * los ajustes (una sola vez).
  */
 async function importOldStore($: EngineInterface): Promise<void> {
   try {
@@ -716,11 +699,17 @@ async function importOldStore($: EngineInterface): Promise<void> {
     if (!(await $.store.keys()).includes('libro')) {
       const home = (await $.env.get('HOME')) ?? ''
       const config = (await $.env.get('CLAUDE_CONFIG_DIR')) || `${home}/.claude`
-      const found = await $.process.run(['find', `${config}/plugins/store`, '-maxdepth', '1', '-name', 'gremio_*.json'], { timeoutMs: 5000 })
-      const files = found.stdout
-        .split('\n')
-        .map(f => f.trim())
-        .filter(f => OLD_STORE.test(f.split('/').pop() ?? ''))
+      const files: string[] = []
+      for (const old of OLD_STORES) {
+        const found = await $.process.run(['find', `${config}/plugins/store`, '-maxdepth', '1', '-name', `${old}_*.json`], { timeoutMs: 5000 })
+        files.push(
+          ...found.stdout
+            .split('\n')
+            .map(f => f.trim())
+            .filter(f => OLD_STORE.test(f.split('/').pop() ?? ''))
+            .sort(),
+        )
+      }
       const stores = await Promise.all(
         files.map(f =>
           $.process
@@ -842,8 +831,8 @@ async function rateLoot($: EngineInterface, id: string, verdict: 'up' | 'down'):
   await note(
     $,
     tr(
-      `${isOk ? '👍' : '👎'} Calificaste el botín de ${hero.name}: ${isOk ? 'bueno' : 'malo'}`,
-      `${isOk ? '👍' : '👎'} You rated ${hero.name}'s loot: ${isOk ? 'good' : 'bad'}`,
+      `${isOk ? '👍' : '👎'} Calificaste la descarga de ${hero.name}: ${isOk ? 'bueno' : 'malo'}`,
+      `${isOk ? '👍' : '👎'} You rated ${hero.name}'s download: ${isOk ? 'good' : 'bad'}`,
     ),
     hero.id,
   )
@@ -883,8 +872,8 @@ async function closeDay($: EngineInterface): Promise<void> {
   await note(
     $,
     tr(
-      `🌙 Fin de la jornada: ${gone.length} ${gone.length === 1 ? 'misión' : 'misiones'}, ${back} con botín. Todos se fueron a casa.`,
-      `🌙 End of the day: ${gone.length} ${gone.length === 1 ? 'quest' : 'quests'}, ${back} with loot. Everyone went home.`,
+      `🌙 Fin de la jornada: ${gone.length} ${gone.length === 1 ? 'conexión' : 'conexiones'}, ${back} con descarga. Todos se fueron a casa.`,
+      `🌙 End of the day: ${gone.length} ${gone.length === 1 ? 'connection' : 'connections'}, ${back} with download. Everyone went home.`,
     ),
   )
 }
@@ -926,11 +915,11 @@ async function absorbContext($: EngineInterface, c: { window: number; tokens?: n
     await update($, lifeWarned, () => true)
     $.ui.toast(
       tr(
-        `💤 A Clawd le queda poca vida (${Math.round(life)} %): un /compact lo deja como nuevo.`,
-        `💤 Clawd is low on HP (${Math.round(life)} %): a /compact leaves Clawd good as new.`,
+        `💤 Al Arquitecto le queda poca señal (${Math.round(life)} %): un /compact lo deja como nuevo.`,
+        `💤 The Architect is low on signal (${Math.round(life)} %): a /compact leaves the Architect good as new.`,
       ),
     )
-    await note($, tr(`💤 A Clawd le queda poca vida (${Math.round(life)} %)`, `💤 Clawd is low on HP (${Math.round(life)} %)`))
+    await note($, tr(`💤 Al Arquitecto le queda poca señal (${Math.round(life)} %)`, `💤 The Architect is low on signal (${Math.round(life)} %)`))
   } else if (life > LOW_LIFE + 10 && wasWarned) {
     await update($, lifeWarned, () => false)
   }
@@ -974,14 +963,14 @@ async function warnPurse($: EngineInterface, now: number): Promise<void> {
   } catch {
     // Sin almacén: avisa igual, una vez en esta sesión.
   }
-  const purse = w.kind === 'five_hour' ? tr('la bolsa de la jornada', 'the shift purse') : tr('el cofre de la semana', 'the weekly chest')
+  const purse = w.kind === 'five_hour' ? tr('la celda de la jornada', 'the shift cell') : tr('la reserva de la semana', 'the weekly reserve')
   $.ui.toast(
     tr(
-      `🪙 A este ritmo ${purse} se acaba en ${span(fc.msToFull)}, antes de rellenarse.`,
-      `🪙 At this pace ${purse} runs out in ${span(fc.msToFull)}, before it refills.`,
+      `🔋 A este ritmo ${purse} se acaba en ${span(fc.msToFull)}, antes de rellenarse.`,
+      `🔋 At this pace ${purse} runs out in ${span(fc.msToFull)}, before it refills.`,
     ),
   )
-  await note($, tr(`🪙 ${purse} se acaba en ${span(fc.msToFull)} a este ritmo`, `🪙 ${purse} runs out in ${span(fc.msToFull)} at this pace`))
+  await note($, tr(`🔋 ${purse} se acaba en ${span(fc.msToFull)} a este ritmo`, `🔋 ${purse} runs out in ${span(fc.msToFull)} at this pace`))
 }
 
 /** Suma una lectura de las ventanas del plan y anota en el libro lo consumido. */
@@ -1012,7 +1001,7 @@ function pct(good: number, total: number): string {
 }
 
 async function openPane($: EngineInterface) {
-  return $.ui.open({ id: PANE, title: tr('Gremio de Clawd', "Clawd's Guild") })
+  return $.ui.open({ id: PANE, title: tr('Matrix del Arquitecto', "The Architect's Matrix") })
 }
 
 /** Te pregunta antes de enviar a un Archimago (Fable). */
@@ -1020,17 +1009,17 @@ async function askFable($: EngineInterface, e: AgentSpawnInput): Promise<'yes' |
   const run = e.workflow?.runId
   if (run && fableRuns.has(run)) return 'yes'
   let answer = ''
-  const optOpus = tr('Mejor un Mago (Opus)', 'A Mage (Opus) instead')
-  const optYes = tr('Autorizar Archimago', 'Approve Archmage')
-  const optNo = tr('No enviarlo', 'Do not send')
+  const optOpus = tr('Mejor un Oráculo (Opus)', 'An Oracle (Opus) instead')
+  const optYes = tr('Autorizar Neo', 'Approve Neo')
+  const optNo = tr('No conectarlo', 'Do not jack in')
   try {
     answer = await $.ui.ask(
       tr(
-        `Clawd quiere enviar a un Archimago (Fable, el modelo más poderoso y el más caro) para: «${cut(e.description || e.prompt, 70)}». ¿Lo autorizas?`,
-        `Clawd wants to send an Archmage (Fable, the most powerful and most expensive model) for: "${cut(e.description || e.prompt, 70)}". Do you approve?`,
+        `El Arquitecto quiere conectar a Neo (Fable, el modelo más poderoso y el más caro) para: «${cut(e.description || e.prompt, 70)}». ¿Píldora roja? (sí = lo autorizas)`,
+        `The Architect wants to jack in Neo (Fable, the most powerful and most expensive model) for: "${cut(e.description || e.prompt, 70)}". Red pill? (yes = approve)`,
       ),
       // La opción segura va primero, por si el cuadro se responde solo cuando no estás.
-      { header: tr('Archimago', 'Archmage'), options: [optOpus, optYes, optNo] },
+      { header: tr('Neo', 'Neo'), options: [optOpus, optYes, optNo] },
     )
   } catch {
     answer = optNo
@@ -1058,15 +1047,14 @@ export const register: Register = on => {
       hasPictures = false
     }
     await importOldStore($)
-    await pickTheme($)
     await pickLanguage($)
-    // «/guild» para todos; «/gremio» también, para quien habla español.
-    for (const name of lang() === 'es' ? ['guild', 'gremio'] : ['guild']) {
+    // «/operator» para todos; «/operador» también, para quien habla español.
+    for (const name of lang() === 'es' ? ['operator', 'operador'] : ['operator']) {
       await $.command.register({
         name,
         description: tr(
-          'Abre el Gremio de Clawd: el Gran Maestre y sus aventureros en vivo ("sonidos" los toca todos, "cuentas" muestra la cuota del plan, "idioma en" lo pasa a inglés, "tema matrix" lo cuenta dentro de la Matrix)',
-          'Opens Clawd\'s Guild: the Grand Master and their adventurers live ("sounds" plays them all, "accounts" shows the plan quota, "language es" switches to Spanish, "theme matrix" retells it inside the Matrix)',
+          'Abre el panel del Operador: el Arquitecto y sus programas en vivo dentro de la Matrix ("sonidos" los toca todos, "cuentas" muestra la cuota del plan, "idioma en" lo pasa a inglés)',
+          'Opens the Operator panel: the Architect and its programs live inside the Matrix ("sounds" plays them all, "accounts" shows the plan quota, "language es" switches to Spanish)',
         ),
       })
     }
@@ -1127,10 +1115,10 @@ export const register: Register = on => {
       await note(
         $,
         hour >= 5 && hour < 12
-          ? tr('🌅 Buenos días: Clawd abre el gremio', '🌅 Good morning: Clawd opens the guild')
+          ? tr('🌅 Buenos días: el Arquitecto abre la Matrix', '🌅 Good morning: the Architect opens the Matrix')
           : hour >= 12 && hour < 20
-            ? tr('🌞 Buenas tardes: Clawd abre el gremio', '🌞 Good afternoon: Clawd opens the guild')
-            : tr('🌙 Buenas noches: Clawd abre el gremio', '🌙 Good evening: Clawd opens the guild'),
+            ? tr('🌞 Buenas tardes: el Arquitecto abre la Matrix', '🌞 Good afternoon: the Architect opens the Matrix')
+            : tr('🌙 Buenas noches: el Arquitecto abre la Matrix', '🌙 Good evening: the Architect opens the Matrix'),
       )
     }
     // La cuota del plan: una lectura ahora y otra cada minuto (es gratis).
@@ -1148,40 +1136,14 @@ export const register: Register = on => {
     return next(e)
   })
 
-  for (const command of ['guild', 'gremio'] as const) on('command.run', { command }, async ($, e) => {
+  for (const command of ['operator', 'operador'] as const) on('command.run', { command }, async ($, e) => {
     const rename = /^\s*(?:nombre|name)\s+(.+)$/i.exec(e.args)
     if (rename) {
       const name = rename[1]?.trim().slice(0, 32) ?? ''
       await update($, label, () => name)
       await update($, labelSource, () => 'manual')
       await beat($, true)
-      return { text: tr(`En el reino, esta sesión se llama «${name}».`, `In the realm, this session is called "${name}".`) }
-    }
-    const themeArg = /^\s*(?:tema|theme)\b\s*(.*)$/i.exec(e.args)
-    if (themeArg) {
-      const choice = themeChoice(themeArg[1] ?? '')
-      if (!choice) {
-        return {
-          text: tr(
-            'Temas: `/guild tema matrix` (el Arquitecto y sus programas) o `/guild tema gremio` (Clawd y sus aventureros).',
-            'Themes: `/guild theme matrix` (the Architect and its programs) or `/guild theme guild` (Clawd and the adventurers).',
-          ),
-        }
-      }
-      await saveTheme($, choice)
-      setTheme(choice)
-      await update($, master, m => (isIdle(m.doing) ? { ...m, doing: idle() } : m))
-      $.ui.invalidate('prompt.section')
-      $.ui.invalidate('ui.render')
-      await refreshStatus($)
-      await $.ui.close({ id: PANE }).catch(() => undefined)
-      void openPane($)
-      return {
-        text:
-          choice === 'matrix'
-            ? tr('Bienvenido a la Matrix: el Arquitecto abre el panel.', 'Welcome to the Matrix: the Architect opens the panel.')
-            : tr('Clawd vuelve a abrir el gremio.', 'Clawd opens the guild again.'),
-      }
+      return { text: tr(`En la Red, esta sesión se llama «${name}».`, `In the Network, this session is called "${name}".`) }
     }
     const language = /^\s*(?:idioma|language|lang)\b\s*(.*)$/i.exec(e.args)
     if (language) {
@@ -1189,8 +1151,8 @@ export const register: Register = on => {
       if (!choice) {
         return {
           text: tr(
-            'Idiomas: `/guild idioma es`, `/guild idioma en` o `/guild idioma auto` (sigue a Claude Code).',
-            'Languages: `/guild language en`, `/guild language es` or `/guild language auto` (follows Claude Code).',
+            'Idiomas: `/operador idioma es`, `/operador idioma en` o `/operador idioma auto` (sigue a Claude Code).',
+            'Languages: `/operator language en`, `/operator language es` or `/operator language auto` (follows Claude Code).',
           ),
         }
       }
@@ -1203,13 +1165,13 @@ export const register: Register = on => {
       return {
         text:
           choice === 'auto'
-            ? tr('El gremio vuelve a seguir el idioma de Claude Code.', "The guild follows Claude Code's language again.")
-            : tr('El gremio ahora habla español.', 'The guild now speaks English.'),
+            ? tr('El Operador vuelve a seguir el idioma de Claude Code.', "The Operator follows Claude Code's language again.")
+            : tr('El Operador ahora habla español.', 'The Operator now speaks English.'),
       }
     }
     if (/cerrar|close/i.test(e.args)) {
       await $.ui.close({ id: PANE })
-      return { text: tr('Gremio cerrado.', 'Guild closed.') }
+      return { text: tr('Matrix cerrada.', 'Matrix closed.') }
     }
     if (/sonido|sound/i.test(e.args)) {
       SOUNDS.forEach((name, i) => {
@@ -1217,8 +1179,8 @@ export const register: Register = on => {
       })
       return {
         text: tr(
-          'Sonando en orden: Gran Maestre (marimba), Archimago, Mago, Bardo, Pícaro y la trompeta triste de cuando algo falla.',
-          'Playing in order: Grand Master (marimba), Archmage, Mage, Bard, Rogue and the sad trumpet for when something fails.',
+          'Sonando en orden: Arquitecto (el teléfono), Neo, Oráculo, Agente, Centinela y la estática de cuando algo falla.',
+          'Playing in order: Architect (the phone), Neo, Oracle, Agent, Sentinel and the static for when something fails.',
         ),
       }
     }
@@ -1234,15 +1196,15 @@ export const register: Register = on => {
       const order: GremioClass[] = ['archimago', 'mago', 'bardo', 'picaro']
       const purseName = (kind: string) =>
         kind === 'five_hour'
-          ? tr('Bolsa de la jornada', 'Shift purse')
+          ? tr('Celda de la jornada', 'Shift cell')
           : kind === 'seven_day'
-            ? tr('Cofre de la semana', 'Weekly chest')
-            : tr(`Cofre (${kindLabel(kind)})`, `Chest (${kindLabel(kind)})`)
+            ? tr('Reserva de la semana', 'Weekly reserve')
+            : tr(`Reserva (${kindLabel(kind)})`, `Reserve (${kindLabel(kind)})`)
       const windows = q.windows.map(
         w =>
           tr(
-            `- ${purseName(w.kind)}: quedan ${coinText(Math.max(0, 100 - w.percent))} de 100 monedas${w.resetsAt ? `, se rellena en ${span(Date.parse(w.resetsAt) - now)}` : ''}`,
-            `- ${purseName(w.kind)}: ${coinText(Math.max(0, 100 - w.percent))} of 100 coins left${w.resetsAt ? `, refills in ${span(Date.parse(w.resetsAt) - now)}` : ''}`,
+            `- ${purseName(w.kind)}: quedan ${coinText(Math.max(0, 100 - w.percent))} de 100 baterías${w.resetsAt ? `, se rellena en ${span(Date.parse(w.resetsAt) - now)}` : ''}`,
+            `- ${purseName(w.kind)}: ${coinText(Math.max(0, 100 - w.percent))} of 100 batteries left${w.resetsAt ? `, refills in ${span(Date.parse(w.resetsAt) - now)}` : ''}`,
           ),
       )
       const rate = ratePerHour(q, now)
@@ -1260,41 +1222,41 @@ export const register: Register = on => {
         })
       const cheap = dm.model
         ? tr(`solo ${CLASS_PLURAL[classOf(dm.model)]}`, `only ${CLASS_PLURAL[classOf(dm.model)]}`)
-        : tr('puros aventureros caros', 'only expensive adventurers')
+        : tr('puros programas caros', 'only expensive programs')
       const text = [
-        tr('**💰 Tesoro del gremio** (tu cuota del plan: 1 moneda = 1%)', '**💰 Guild treasury** (your plan quota: 1 coin = 1%)'),
-        ...(windows.length > 0 ? windows : [tr('- La bolsa aparece con la próxima respuesta del modelo.', "- The purse shows up with the model's next reply.")]),
+        tr('**🔋 Energía de la Matrix** (tu cuota del plan: 1 batería = 1%)', '**🔋 Matrix power** (your plan quota: 1 battery = 1%)'),
+        ...(windows.length > 0 ? windows : [tr('- La celda aparece con la próxima respuesta del modelo.', "- The cell shows up with the model's next reply.")]),
         tr(
-          `- ${rate === null ? 'Midiendo el gasto por hora' : `Gastas ${coinText(rate)} monedas por hora`}${fc ? (fc.isEnough ? ', te alcanzan hasta que se rellene la bolsa' : `; a este ritmo la bolsa se vacía en ${span(fc.msToFull)}, antes de rellenarse`) : ''}`,
-          `- ${rate === null ? 'Measuring spend per hour' : `You spend ${coinText(rate)} coins per hour`}${fc ? (fc.isEnough ? ', enough to last until the purse refills' : `; at this pace the purse empties in ${span(fc.msToFull)}, before it refills`) : ''}`,
+          `- ${rate === null ? 'Midiendo el gasto por hora' : `Gastas ${coinText(rate)} baterías por hora`}${fc ? (fc.isEnough ? ', te alcanzan hasta que se rellene la celda' : `; a este ritmo la celda se vacía en ${span(fc.msToFull)}, antes de rellenarse`) : ''}`,
+          `- ${rate === null ? 'Measuring spend per hour' : `You spend ${coinText(rate)} batteries per hour`}${fc ? (fc.isEnough ? ', enough to last until the cell refills' : `; at this pace the cell empties in ${span(fc.msToFull)}, before it refills`) : ''}`,
         ),
         '',
         tr(
-          `**${isShift ? 'Esta jornada' : 'Esta semana'}** el gremio gastó ${coinText(pts)} monedas: Clawd ${coinText(shareOf(t.masterCost, t, pts))}${split.length > 0 ? `, ${split.join(', ')}` : ''}`,
-          `**${isShift ? 'This shift' : 'This week'}** the guild spent ${coinText(pts)} coins: Clawd ${coinText(shareOf(t.masterCost, t, pts))}${split.length > 0 ? `, ${split.join(', ')}` : ''}`,
+          `**${isShift ? 'Esta jornada' : 'Esta semana'}** la Matrix gastó ${coinText(pts)} baterías: el Arquitecto ${coinText(shareOf(t.masterCost, t, pts))}${split.length > 0 ? `, ${split.join(', ')}` : ''}`,
+          `**${isShift ? 'This shift' : 'This week'}** the Matrix spent ${coinText(pts)} batteries: the Architect ${coinText(shareOf(t.masterCost, t, pts))}${split.length > 0 ? `, ${split.join(', ')}` : ''}`,
         ),
         ...(t.saved > 0 && pts > 0
           ? [
               tr(
-                `- El Código te ahorró ≈ ${coinText(shareOf(t.saved, t, pts))} monedas frente a mandar ${cheap}`,
-                `- The Code saved you ≈ ${coinText(shareOf(t.saved, t, pts))} coins versus sending ${cheap}`,
+                `- El Código te ahorró ≈ ${coinText(shareOf(t.saved, t, pts))} baterías frente a mandar ${cheap}`,
+                `- The Code saved you ≈ ${coinText(shareOf(t.saved, t, pts))} batteries versus sending ${cheap}`,
               ),
             ]
           : []),
         tr(
-          '_El reparto entre Clawd y los aventureros es estimado, según el peso de cada modelo._',
-          "_The split between Clawd and the adventurers is an estimate, based on each model's weight._",
+          '_El reparto entre el Arquitecto y los programas es estimado, según el peso de cada modelo._',
+          "_The split between the Architect and the programs is an estimate, based on each model's weight._",
         ),
         '',
-        tr('**📕 Libro del gremio** (todas las sesiones)', '**📕 Guild ledger** (all sessions)'),
+        tr('**🗄️ Archivo de la Matrix** (todas las sesiones)', '**🗄️ Matrix archive** (all sessions)'),
         tr(
-          `- ${b.missions} ${b.missions === 1 ? 'misión' : 'misiones'} · buen botín ${pct(b.good, b.good + b.bad)} · ${isShift ? `${coinText(b.fivePoints)} monedas de jornada gastadas` : `${coinText(b.weekPoints)} monedas de semana gastadas`}`,
-          `- ${b.missions} ${b.missions === 1 ? 'quest' : 'quests'} · good loot ${pct(b.good, b.good + b.bad)} · ${isShift ? `${coinText(b.fivePoints)} shift coins spent` : `${coinText(b.weekPoints)} weekly coins spent`}`,
+          `- ${b.missions} ${b.missions === 1 ? 'conexión' : 'conexiones'} · buena descarga ${pct(b.good, b.good + b.bad)} · ${isShift ? `${coinText(b.fivePoints)} baterías de jornada gastadas` : `${coinText(b.weekPoints)} baterías de semana gastadas`}`,
+          `- ${b.missions} ${b.missions === 1 ? 'connection' : 'connections'} · good download ${pct(b.good, b.good + b.bad)} · ${isShift ? `${coinText(b.fivePoints)} shift batteries spent` : `${coinText(b.weekPoints)} weekly batteries spent`}`,
         ),
         ...(rows.length > 0
           ? [
               '',
-              tr('| Clase | Misiones | Buen botín | Parte del oro |', '| Class | Quests | Good loot | Share of gold |'),
+              tr('| Clase | Conexiones | Buena descarga | Parte de la energía |', '| Class | Connections | Good download | Share of energy |'),
               '|---|---|---|---|',
               ...rows,
             ]
@@ -1305,8 +1267,8 @@ export const register: Register = on => {
     const opened = await openPane($)
     return {
       text: opened.isPlaced
-        ? tr('Gremio abierto.', 'Guild opened.')
-        : tr(`El gremio espera lugar en pantalla: ${opened.reason}`, `The guild is waiting for room on screen: ${opened.reason}`),
+        ? tr('Matrix abierta.', 'Matrix opened.')
+        : tr(`La Matrix espera lugar en pantalla: ${opened.reason}`, `The Matrix is waiting for room on screen: ${opened.reason}`),
     }
   })
 
@@ -1342,7 +1304,7 @@ export const register: Register = on => {
           patchHero(id, u => ({
             ...u,
             status: 'running',
-            doing: (u.round ?? 1) > 1 ? tr('📨 leyendo tu mensaje', '📨 reading your message') : tr('📜 leyendo la misión', '📜 reading the quest'),
+            doing: (u.round ?? 1) > 1 ? tr('📨 leyendo tu mensaje', '📨 reading your message') : tr('📜 leyendo el encargo', '📜 reading the brief'),
             endedAt: null,
           })),
         )
@@ -1374,8 +1336,8 @@ export const register: Register = on => {
         if (e.reason === 'answer') await chime($, 'maestro')
         else if (e.reason !== 'aborted') await chime($, 'caido')
         const turnMs = e.durationMs ?? 0
-        if (e.reason === 'answer') await ring($, '🔔', tr('Clawd terminó', 'Clawd finished'), true, turnMs)
-        else if (e.reason !== 'aborted') await ring($, '🩹', tr('Clawd tuvo un problema', 'Clawd hit a problem'), true, turnMs)
+        if (e.reason === 'answer') await ring($, '☎️', tr('El Arquitecto terminó', 'The Architect finished'), true, turnMs)
+        else if (e.reason !== 'aborted') await ring($, '🩹', tr('El Arquitecto tuvo un problema', 'The Architect hit a problem'), true, turnMs)
         if (e.usage) {
           const used = usageFrom(e.usage)
           const spent = costOf(e.usage.model, used)
@@ -1411,27 +1373,27 @@ export const register: Register = on => {
               reportFull: e.answer ? e.answer.slice(0, 20_000) : (one.reportFull ?? null),
               doing:
                 status === 'done'
-                  ? tr('💰 volvió con el botín', '💰 came back with the loot')
+                  ? tr('💾 se desconectó con la descarga', '💾 unplugged with the download')
                   : status === 'aborted'
-                    ? tr('🚪 abandonó la misión', '🚪 left the quest')
-                    : tr('🩹 volvió herido', '🩹 came back wounded'),
+                    ? tr('🚪 abandonó la conexión', '🚪 left the connection')
+                    : tr('🩹 se desconectó herido', '🩹 unplugged wounded'),
             })),
           )
           const verb =
             status === 'done'
-              ? tr('volvió con el botín', 'came back with the loot')
+              ? tr('se desconectó con la descarga', 'unplugged with the download')
               : status === 'aborted'
-                ? tr('abandonó la misión', 'left the quest')
-                : tr('volvió herido', 'came back wounded')
-          const icon = status === 'done' ? tr('💰', '💰') : status === 'aborted' ? '🚪' : '🩹'
+                ? tr('abandonó la conexión', 'left the connection')
+                : tr('se desconectó herido', 'unplugged wounded')
+          const icon = status === 'done' ? tr('💾', '💾') : status === 'aborted' ? '🚪' : '🩹'
           // Se queda unos segundos en el campo con su botín antes de entrar a la taberna.
           returnRedraws.push(frame + Math.ceil((RETURN_MS + 200) / 400))
           await refreshAgents($)
           await note($, `${icon} ${hero.name} ${verb} · ${duration(at - (hero.roundStartedAt ?? hero.startedAt))}`, hero.id)
           if (status === 'done') await chime($, hero.cls)
           if (status === 'failed') await chime($, 'caido')
-          if (status === 'done') await ring($, '💰', tr(`${hero.name} volvió con el botín`, `${hero.name} came back with the loot`), false)
-          if (status === 'failed') await ring($, '🩹', tr(`${hero.name} volvió herido`, `${hero.name} came back wounded`), false)
+          if (status === 'done') await ring($, '💾', tr(`${hero.name} se desconectó con la descarga`, `${hero.name} unplugged with the download`), false)
+          if (status === 'failed') await ring($, '🩹', tr(`${hero.name} se desconectó herido`, `${hero.name} unplugged wounded`), false)
           await refreshStatus($)
           await update($, treasury, t => ({ ...t, heroesCost: t.heroesCost + spent, saved: t.saved + saved }))
           await addSpend($, spent)
@@ -1477,7 +1439,7 @@ export const register: Register = on => {
   // Cada agente que nace pasa por el Código y queda como aventurero nuevo.
   on('agent.spawn', async ($, e, next) => {
     let input = e
-    let choice = e.model ? tr(`lo eligió Clawd (${e.model})`, `chosen by Clawd (${e.model})`) : tr('heredado de quien lo envió', 'inherited from whoever sent it')
+    let choice = e.model ? tr(`lo eligió el Arquitecto (${e.model})`, `chosen by the Architect (${e.model})`) : tr('heredado de quien lo envió', 'inherited from whoever jacked it in')
     let isReadOnly = false
     let briefWords: number | null = null
     let effort: GremioEffort | null = null
@@ -1498,8 +1460,8 @@ export const register: Register = on => {
         await note($, tr(`🛑 El Código frenó un clon para algo liviano: ${cut(e.description, 40)}`, `🛑 The Code stopped a clone for a light task: ${cut(e.description, 40)}`))
         return {
           deny: tr(
-            'Código del Gremio: para una tarea liviana no se envía un fork con toda la conversación. Envía un agente nuevo (sin fork) con una misión breve y model: "haiku".',
-            'Guild Code: for a light task, do not send a fork with the whole conversation. Send a new agent (no fork) with a short quest and model: "haiku".',
+            'Código de la Matrix: para una tarea liviana no se envía un fork con toda la conversación. Envía un agente nuevo (sin fork) con una conexión breve y model: "haiku".',
+            'Matrix Code: for a light task, do not jack in a fork with the whole conversation. Jack in a new agent (no fork) with a short connection and model: "haiku".',
           ),
         }
       }
@@ -1513,7 +1475,7 @@ export const register: Register = on => {
           if (up) {
             promoted = tr(
               `Los ${CLASS_PLURAL[from]} ${up.why}: el Código mandó un ${CLASS_LABEL[up.cls]}`,
-              `${CLASS_PLURAL[from]} ${up.why}: the Code sent ${aOrAn(CLASS_LABEL[up.cls])}`,
+              `${CLASS_PLURAL[from]} ${up.why}: the Code jacked in ${aOrAn(CLASS_LABEL[up.cls])}`,
             )
             p = raise(p, up.cls)
           }
@@ -1523,7 +1485,7 @@ export const register: Register = on => {
             const week = q.windows.find(w => w.kind === 'seven_day')
             if (week?.resetsAt && warnedHighWeek !== week.resetsAt) {
               warnedHighWeek = week.resetsAt
-              await note($, tr(`⛔ La semana pasó del ${HIGH_WEEK} %: el Código manda solo ${CLASS_PLURAL.picaro} y ${CLASS_PLURAL.bardo}`, `⛔ The week passed ${HIGH_WEEK} %: the Code sends only ${CLASS_PLURAL.picaro} and ${CLASS_PLURAL.bardo}`))
+              await note($, tr(`⛔ La semana pasó del ${HIGH_WEEK} %: el Código manda solo ${CLASS_PLURAL.picaro} y ${CLASS_PLURAL.bardo}`, `⛔ The week passed ${HIGH_WEEK} %: the Code jacks in only ${CLASS_PLURAL.picaro} and ${CLASS_PLURAL.bardo}`))
             }
           }
           input = { ...input, model: p.alias }
@@ -1533,8 +1495,8 @@ export const register: Register = on => {
         } else if (!isFable(e.model)) {
           choice =
             aliasOf(e.model) === p.alias
-              ? tr(`lo eligió Clawd (${p.why})`, `chosen by Clawd (${p.why})`)
-              : tr(`lo eligió Clawd (el Código sugería ${p.alias})`, `chosen by Clawd (the Code suggested ${p.alias})`)
+              ? tr(`lo eligió el Arquitecto (${p.why})`, `chosen by the Architect (${p.why})`)
+              : tr(`lo eligió el Arquitecto (el Código sugería ${p.alias})`, `chosen by the Architect (the Code suggested ${p.alias})`)
         }
         const alias = aliasOf(input.model ?? '')
         isReadOnly = p.isReadOnly && alias === 'haiku'
@@ -1550,24 +1512,24 @@ export const register: Register = on => {
     if (e.resume === undefined && isFable(wanted)) {
       const verdict = await askFable($, e)
       if (verdict === 'yes') {
-        choice = tr('Archimago autorizado por ti', 'Archmage approved by you')
+        choice = tr('Neo autorizado por ti', 'Neo approved by you')
         if (isOn && !e.fork) effort = 'high'
       } else if (verdict === 'opus' && !e.fork) {
         input = { ...input, model: 'opus' }
-        choice = tr('pediste un Mago (Opus) en vez del Archimago', 'you asked for a Mage (Opus) instead of the Archmage')
+        choice = tr('pediste un Oráculo (Opus) en vez de Neo', 'you asked for an Oracle (Opus) instead of Neo')
         if (isOn) effort = 'high'
       } else {
-        await note($, tr(`🚫 No autorizaste al Archimago: ${cut(e.description || e.prompt, 40)}`, `🚫 You did not approve the Archmage: ${cut(e.description || e.prompt, 40)}`))
+        await note($, tr(`🚫 No autorizaste a Neo: ${cut(e.description || e.prompt, 40)}`, `🚫 You did not approve Neo: ${cut(e.description || e.prompt, 40)}`))
         return {
           deny:
             verdict === 'opus'
               ? tr(
                   'La persona prefiere Opus, pero un fork siempre usa el modelo de la sesión principal. Envía un agente nuevo con model: "opus".',
-                  'The person prefers Opus, but a fork always uses the main session model. Send a new agent with model: "opus".',
+                  'The person prefers Opus, but a fork always uses the model of the main session. Jack in a new agent with model: "opus".',
                 )
               : tr(
-                  `La persona no autorizó usar Fable${verdict && verdict !== 'No enviarlo' ? ` (respondió: "${cut(verdict, 120)}")` : ''}. No se envió el agente; usa opus o sonnet, o pregúntale.`,
-                  `The person did not approve using Fable${verdict && verdict !== 'Do not send' ? ` (they replied: "${cut(verdict, 120)}")` : ''}. The agent was not sent; use opus or sonnet, or ask them.`,
+                  `La persona no autorizó usar Fable${verdict && verdict !== 'No conectarlo' ? ` (respondió: "${cut(verdict, 120)}")` : ''}. No se envió el agente; usa opus o sonnet, o pregúntale.`,
+                  `The person did not approve using Fable${verdict && verdict !== 'Do not jack in' ? ` (they replied: "${cut(verdict, 120)}")` : ''}. The agent was not jacked in; use opus or sonnet, or ask them.`,
                 ),
         }
       }
@@ -1598,8 +1560,8 @@ export const register: Register = on => {
         await note(
           $,
           tr(
-            `📨 ${boss ? boss.name : 'Clawd'} le escribió de nuevo a ${known.name}${message ? `: ${cut(message, 40)}` : ''}`,
-            `📨 ${boss ? boss.name : 'Clawd'} wrote to ${known.name} again${message ? `: ${cut(message, 40)}` : ''}`,
+            `📨 ${boss ? boss.name : 'El Arquitecto'} le escribió de nuevo a ${known.name}${message ? `: ${cut(message, 40)}` : ''}`,
+            `📨 ${boss ? boss.name : 'The Architect'} wrote to ${known.name} again${message ? `: ${cut(message, 40)}` : ''}`,
           ),
           known.id,
         )
@@ -1661,8 +1623,8 @@ export const register: Register = on => {
         await note(
           $,
           tr(
-            `🧭 ${boss ? boss.name : 'Clawd'} envió a ${hero.name}, ${hero.epithet}: ${hero.description}`,
-            `🧭 ${boss ? boss.name : 'Clawd'} sent ${hero.name}, ${hero.epithet}: ${hero.description}`,
+            `🔌 ${boss ? boss.name : 'El Arquitecto'} conectó a ${hero.name}, ${hero.epithet}: ${hero.description}`,
+            `🔌 ${boss ? boss.name : 'The Architect'} jacked in ${hero.name}, ${hero.epithet}: ${hero.description}`,
           ),
           hero.id,
         )
@@ -1670,7 +1632,7 @@ export const register: Register = on => {
         if (!e.parentAgentId) {
           await update($, master, m => ({
             ...m,
-            doing: tr(`📜 envió a ${hero.name}`, `📜 sent ${hero.name}`),
+            doing: tr(`📜 conectó a ${hero.name}`, `📜 jacked in ${hero.name}`),
             model: m.model || e.parentModel,
             actionCount: m.actionCount + 1,
             turnActions: (m.turnActions ?? 0) + 1,
@@ -1688,8 +1650,8 @@ export const register: Register = on => {
       ? next(e)
       : {
           deny: tr(
-            'El Gremio no pudo pedirle permiso a la persona para usar Fable; no se envió el agente.',
-            'The Guild could not ask the person for permission to use Fable; the agent was not sent.',
+            'El Operador no pudo pedirle permiso a la persona para usar Fable; no se conectó el agente.',
+            'The Operator could not ask the person for permission to use Fable; the agent was not jacked in.',
           ),
         },
   )
@@ -1717,10 +1679,10 @@ export const register: Register = on => {
         const extra = high
           ? tr(
               `\n\nLa semana del plan pasó del ${HIGH_WEEK} %: hasta que se recargue, envía solo haiku o sonnet (nada de opus ni fable) y evita trabajo pesado que no sea urgente.`,
-              `\n\nThe plan's week passed ${HIGH_WEEK} %: until it refills, send only haiku or sonnet (no opus or fable) and avoid heavy work that is not urgent.`,
+              `\n\nThe plan's week passed ${HIGH_WEEK} %: until it refills, jack in only haiku or sonnet (no opus or fable) and avoid heavy work that is not urgent.`,
             )
           : ''
-        return { sections: [...composed.sections, { id: 'guild:code', text: doctrineText() + extra, scope: 'session' as const }] }
+        return { sections: [...composed.sections, { id: 'operator:code', text: doctrineText() + extra, scope: 'session' as const }] }
       }
     } catch {
       // Sin Código, el prompt queda como estaba.
@@ -1757,11 +1719,11 @@ export const register: Register = on => {
         const id = e.agentId
         const hero = (await read($, heroes)).find(u => u.id === id)
         if (hero?.isReadOnly && WRITE_TOOLS.has(tool)) {
-          await note($, tr(`🛑 El Código frenó a ${hero.name}: su misión es de solo lectura`, `🛑 The Code stopped ${hero.name}: its quest is read-only`), hero.id)
+          await note($, tr(`🛑 El Código frenó a ${hero.name}: su conexión es de solo lectura`, `🛑 The Code stopped ${hero.name}: its connection is read-only`), hero.id)
           return {
             deny: tr(
-              'Código del Gremio: esta misión es de solo lectura. No edites ni crees archivos; informa lo que encontraste y quien te envió decidirá los cambios.',
-              'Guild Code: this quest is read-only. Do not edit or create files; report what you found and whoever sent you will decide on the changes.',
+              'Código de la Matrix: esta conexión es de solo lectura. No edites ni crees archivos; informa lo que encontraste y quien te envió decidirá los cambios.',
+              'Matrix Code: this connection is read-only. Do not edit or create files; report what you found and whoever jacked you in will decide on the changes.',
             ),
           }
         }
@@ -1843,7 +1805,7 @@ export const register: Register = on => {
     const [id, list] = await Promise.all([read($, scrollHero), read($, heroes)])
     const hero = id ? list.find(u => u.id === id) : undefined
     const { Box, Text, Button, Markdown } = $.ui.resolve(e)
-    if (!hero) return <Text dimColor>{tr('No hay botín que mostrar.', 'No loot to show.')}</Text>
+    if (!hero) return <Text dimColor>{tr('No hay descarga que mostrar.', 'No download to show.')}</Text>
     const text = hero.reportFull ?? hero.report ?? ''
     return (
       <Box flexDirection="column" gap={1}>
@@ -1862,7 +1824,7 @@ export const register: Register = on => {
               const r = await $.ui.copy({ text, surface: e.surface })
               $.ui.toast(
                 r.isCopied
-                  ? tr(`📋 Copiaste el botín de ${hero.name}`, `📋 You copied ${hero.name}'s loot`)
+                  ? tr(`📋 Copiaste la descarga de ${hero.name}`, `📋 You copied ${hero.name}'s download`)
                   : tr('No pude copiarlo al portapapeles', "Couldn't copy it to the clipboard"),
               )
             }}
@@ -1890,7 +1852,7 @@ export const register: Register = on => {
       before = ctx && ctx.percent !== null ? Math.max(0, 100 - ctx.percent) : null
       window = ctx?.window ?? 0
       const at = await $.clock.now()
-      await update($, master, m => ({ ...m, napping: true, napStartedAt: at, doing: tr('😴 durmiendo una siesta…', '😴 taking a nap…') }))
+      await update($, master, m => ({ ...m, napping: true, napStartedAt: at, doing: tr('😴 en un déjà vu…', '😴 in a déjà vu…') }))
       await beat($, true)
     } catch {
       // La siesta no se dibuja; el resumen sigue igual.
@@ -1910,10 +1872,10 @@ export const register: Register = on => {
           $,
           before !== null && after !== null
             ? tr(
-                `🌅 Clawd despertó de su siesta: la vida pasó de ${Math.round(before)} % a ${Math.round(after)} %`,
-                `🌅 Clawd woke up from a nap: HP went from ${Math.round(before)} % to ${Math.round(after)} %`,
+                `🌅 El Arquitecto despertó de su déjà vu: la señal pasó de ${Math.round(before)} % a ${Math.round(after)} %`,
+                `🌅 The Architect woke up from a déjà vu: signal went from ${Math.round(before)} % to ${Math.round(after)} %`,
               )
-            : tr('🌅 Clawd despertó de su siesta: la conversación quedó resumida', '🌅 Clawd woke up from a nap: the conversation was summarized'),
+            : tr('🌅 El Arquitecto despertó de su déjà vu: la conversación quedó resumida', '🌅 The Architect woke up from a déjà vu: the conversation was summarized'),
         )
         await beat($, true)
       } catch {
@@ -2002,7 +1964,7 @@ export const register: Register = on => {
       return (
         <Box flexDirection="column">
           <Text>
-            {tr('Gran Maestre', 'Grand Master')}: {isIdle(dm.doing) ? idle() : dm.doing}
+            {tr('Arquitecto', 'Architect')}: {isIdle(dm.doing) ? idle() : dm.doing}
           </Text>
           {party.map(u => (
             <Text>
@@ -2017,8 +1979,8 @@ export const register: Register = on => {
     isPaneUp = true
     const nextDrawn = new Map<string, Drawn>()
     const cols = Math.max(20, e.props.bodyColumns)
-    rainCols = theme() === 'matrix' ? Math.max(10, Math.min(cols, 72)) : 0
-    if (rainCols > 0) startRain($)
+    rainCols = Math.max(10, Math.min(cols, 72))
+    startRain($)
     const isCompact = e.props.placement === 'inline'
     const isNarrow = cols < 44
     const viewing = e.props.view.agentId
@@ -2033,10 +1995,10 @@ export const register: Register = on => {
 
     const sprite = (key: string, cls: GremioClass, state: SpriteState, size: Size, faded = false) => {
       const box = CELLS[size]
-      // En la Matrix, donde la terminal puede, cada uno es su retrato (en reposo, desteñido; caído, en gris).
-      if (theme() === 'matrix' && hasPictures && pluginRoot) {
+      // Donde la terminal puede, cada uno es su retrato (en reposo, desteñido; caído, en gris).
+      if (hasPictures && pluginRoot) {
         const variant = state === 'down' ? '-caido' : faded ? '-reposo' : ''
-        return <Image key={key} source={{ file: `${pluginRoot}/art/matrix/${cls}${variant}.png`, format: 'png' }} columns={box.columns} rows={box.rows} alt={CLASS_LABEL[cls]} />
+        return <Image key={key} source={{ file: `${pluginRoot}/art/${cls}${variant}.png`, format: 'png' }} columns={box.columns} rows={box.rows} alt={CLASS_LABEL[cls]} />
       }
       nextDrawn.set(key, { cls, state, size, faded })
       return <Raster key={key} columns={box.columns} rows={box.rows} cells={spriteCells(cls, poseFor(state), frame, size, faded)} />
@@ -2072,7 +2034,7 @@ export const register: Register = on => {
       const isQuiet = u.status === 'running' && (inFlight.get(u.id) ?? 0) === 0 && since > QUIET_MS
       return isQuiet ? tr(`💤 quieto hace ${Math.floor(since / 60_000)} min`, `💤 idle for ${Math.floor(since / 60_000)} min`) : u.doing
     }
-    const says = !dm.isBusy && running > 0 ? tr('esperando a sus aventureros', 'waiting for the adventurers') : isIdle(dm.doing) ? idle() : dm.doing
+    const says = !dm.isBusy && running > 0 ? tr('esperando a sus programas', 'waiting for the programs') : isIdle(dm.doing) ? idle() : dm.doing
 
     // El Gran Maestre: su ficha de personaje, con datos de la sesión.
     // Vida = el contexto que le queda; Turno = lo que lleva; Grupo = sus aventureros.
@@ -2090,7 +2052,7 @@ export const register: Register = on => {
       <Button plain key="vida" onPress={() => update($, lifeOpen, isOpen => !isOpen)}>
         <Text>
           <Text dimColor>{isLifeOpen ? '▾ ' : '▸ '}</Text>
-          {label(tr('Vida', 'HP'))}
+          {label(tr('Señal', 'Signal'))}
           {life === null ? (
             <Text dimColor>{tr('se mide con la próxima respuesta', 'measured on the next reply')}</Text>
           ) : (
@@ -2102,7 +2064,7 @@ export const register: Register = on => {
                 {Math.round(life)}
               </Text>
               {napIn !== null && napIn <= 5 ? (
-                <Text color={RED}>{tr(`  siesta en ~${napIn} ${napIn === 1 ? 'turno' : 'turnos'}`, `  nap in ~${napIn} ${napIn === 1 ? 'turn' : 'turns'}`)}</Text>
+                <Text color={RED}>{tr(`  déjà vu en ~${napIn} ${napIn === 1 ? 'turno' : 'turnos'}`, `  déjà vu in ~${napIn} ${napIn === 1 ? 'turn' : 'turns'}`)}</Text>
               ) : null}
             </Text>
           )}
@@ -2118,7 +2080,7 @@ export const register: Register = on => {
               : tr(`Contexto de ${tokensText(ctx.window)} tokens`, `Context of ${tokensText(ctx.window)} tokens`)}
           </Text>
           {napIn !== null ? (
-            <Text dimColor>{tr(`A este ritmo (${perTurn.toFixed(1)} % por turno), siesta en ~${napIn} ${napIn === 1 ? 'turno' : 'turnos'}`, `At this pace (${perTurn.toFixed(1)} % per turn), nap in ~${napIn} ${napIn === 1 ? 'turn' : 'turns'}`)}</Text>
+            <Text dimColor>{tr(`A este ritmo (${perTurn.toFixed(1)} % por turno), déjà vu en ~${napIn} ${napIn === 1 ? 'turno' : 'turnos'}`, `At this pace (${perTurn.toFixed(1)} % per turn), déjà vu in ~${napIn} ${napIn === 1 ? 'turn' : 'turns'}`)}</Text>
           ) : null}
           <Text dimColor>{tr('Cada ♥ es el 10 % · al vaciarse, la conversación se resume para seguir', 'Each ♥ is 10 % · when empty, the conversation is summarized to go on')}</Text>
         </Box>
@@ -2143,11 +2105,11 @@ export const register: Register = on => {
             <Text dimColor>{'  '}</Text>
             {label(tr('Hoy', 'Today'))}
             <Text>
-              {party.length} {party.length === 1 ? tr('misión', 'quest') : tr('misiones', 'quests')}
+              {party.length} {party.length === 1 ? tr('conexión', 'connection') : tr('conexiones', 'connections')}
             </Text>
             {withLoot.length > 0 ? <Text dimColor>
                 {' '}
-                · {withLoot.length} {tr('con botín', 'with loot')}
+                · {withLoot.length} {tr('con descarga', 'with download')}
               </Text> : null}
             {unread.length > 0 ? <Text color={CLASS_COLOR.maestro}>
                 {' '}
@@ -2178,8 +2140,8 @@ export const register: Register = on => {
             await note(
               $,
               isCode
-                ? tr('📜 Apagaste el Código: Clawd envía sin reglas', '📜 You turned the Code off: Clawd sends with no rules')
-                : tr('📜 Encendiste el Código del Gremio', '📜 You turned the Guild Code on'),
+                ? tr('📜 Apagaste el Código: el Arquitecto envía sin reglas', '📜 You turned the Code off: the Architect jacks in with no rules')
+                : tr('📜 Encendiste el Código de la Matrix', '📜 You turned the Matrix Code on'),
             )
           }}
         >
@@ -2201,13 +2163,13 @@ export const register: Register = on => {
           <Box gap={2}>
             <Button plain key="sel-maestro" onPress={() => select('maestro')}>
               <Text bold color={CLASS_COLOR.maestro}>
-                {picked === 'maestro' ? '▾ ' : ''}{tr('👑 GRAN MAESTRE', '👑 GRAND MASTER')}
+                {picked === 'maestro' ? '▾ ' : ''}{tr('🖥️ ARQUITECTO', '🖥️ ARCHITECT')}
               </Text>
             </Button>
             {toggles}
           </Box>
           <Text dimColor>
-            {tr('Clawd', 'Clawd')} · {dm.model ? modelName(dm.model) : tr('sesión principal', 'main session')}
+            {tr('El Arquitecto', 'The Architect')} · {dm.model ? modelName(dm.model) : tr('núcleo', 'mainframe')}
           </Text>
           <Text>{tr(`«${says}»`, `“${says}”`)}</Text>
           <Box flexDirection="column" marginTop={1}>
@@ -2247,7 +2209,7 @@ export const register: Register = on => {
     const savedPts = gold.saved > 0 ? shareOf(gold.saved, gold, pts) : 0
     const cheap = dm.model
       ? tr(`solo ${CLASS_PLURAL[classOf(dm.model)]}`, `only ${CLASS_PLURAL[classOf(dm.model)]}`)
-      : tr('puros aventureros caros', 'only expensive adventurers')
+      : tr('puros programas caros', 'only expensive programs')
     const refill = (w: { resetsAt: string | null }) => (w.resetsAt ? span(Date.parse(w.resetsAt) - now) : null)
     const togglePurse = (kind: string) => update($, purseOpen, cur => (cur === kind ? null : kind))
 
@@ -2281,7 +2243,7 @@ export const register: Register = on => {
     const highLine = isHighWeek ? (
       <Text color={RED}>
         {'  '}
-        {tr(`⛔ Semana sobre el ${HIGH_WEEK} %: el Código manda solo ${CLASS_PLURAL.picaro} y ${CLASS_PLURAL.bardo}`, `⛔ Week over ${HIGH_WEEK} %: the Code sends only ${CLASS_PLURAL.picaro} and ${CLASS_PLURAL.bardo}`)}
+        {tr(`⛔ Semana sobre el ${HIGH_WEEK} %: el Código manda solo ${CLASS_PLURAL.picaro} y ${CLASS_PLURAL.bardo}`, `⛔ Week over ${HIGH_WEEK} %: the Code jacks in only ${CLASS_PLURAL.picaro} and ${CLASS_PLURAL.bardo}`)}
       </Text>
     ) : null
     // La semana por proyecto: dónde se fue la energía.
@@ -2311,8 +2273,8 @@ export const register: Register = on => {
                 ),
             pts > 0
               ? tr(
-                  `Esta sesión gastó ${coinText(pts)}${gold.masterCost + gold.heroesCost > 0 ? `: Clawd ${coinText(shareOf(gold.masterCost, gold, pts))}${split.map(s => ` · ${s}`).join('')}` : ''}`,
-                  `This session spent ${coinText(pts)}${gold.masterCost + gold.heroesCost > 0 ? `: Clawd ${coinText(shareOf(gold.masterCost, gold, pts))}${split.map(s => ` · ${s}`).join('')}` : ''}`,
+                  `Esta sesión gastó ${coinText(pts)}${gold.masterCost + gold.heroesCost > 0 ? `: el Arquitecto ${coinText(shareOf(gold.masterCost, gold, pts))}${split.map(s => ` · ${s}`).join('')}` : ''}`,
+                  `This session spent ${coinText(pts)}${gold.masterCost + gold.heroesCost > 0 ? `: the Architect ${coinText(shareOf(gold.masterCost, gold, pts))}${split.map(s => ` · ${s}`).join('')}` : ''}`,
                 )
               : null,
             savedPts >= 0.05 ? { good: tr(`El Código te ahorró ≈ ${coinText(savedPts)} frente a mandar ${cheap}`, `The Code saved you ≈ ${coinText(savedPts)} versus sending ${cheap}`) } : null,
@@ -2340,19 +2302,19 @@ export const register: Register = on => {
       <Box flexDirection="column">
         <Box gap={2}>
           <Text>
-            {theme() === 'matrix' ? '🔋' : '💰'}{' '}
+            🔋{' '}
             <Text bold color={CLASS_COLOR.maestro}>
-              {tr('Tesoro del gremio', 'Guild treasury')}
+              {tr('Energía de la Matrix', 'Matrix power')}
             </Text>
           </Text>
           <Button plain key="libro" onPress={() => update($, bookOpen, isOpen => !isOpen)}>
             <Text color={isBookOpen ? CLASS_COLOR.maestro : undefined}>
-              {tr('📕 Libro', '📕 Ledger')} {isBookOpen ? '▾' : '▸'}
+              {tr('🗄️ Archivo', '🗄️ Archive')} {isBookOpen ? '▾' : '▸'}
             </Text>
           </Button>
         </Box>
         {plan5.windows.length === 0 ? (
-          <Text dimColor>{tr('Las monedas aparecen con la próxima respuesta.', 'Coins show up with the next reply.')}</Text>
+          <Text dimColor>{tr('Las baterías aparecen con la próxima respuesta.', 'Batteries show up with the next reply.')}</Text>
         ) : (
           <Box flexDirection="column">
             {five && purseLine(five, tr('Jornada', 'Shift'))}
@@ -2374,7 +2336,7 @@ export const register: Register = on => {
         <Box flexDirection="column">
           <Button plain key="reino" onPress={() => update($, realmOpen, isOpen => !isOpen)}>
             <Text wrap="truncate-end">
-              <Text color={CLASS_COLOR.maestro}>{tr('🏰 Reino', '🏰 Realm')}</Text>
+              <Text color={CLASS_COLOR.maestro}>{tr('🌐 Red', '🌐 Network')}</Text>
               <Text dimColor> {isRealmOpen ? '▾' : '▸'} </Text>
               {realmNow.map((r, i) => (
                 <Text color={r.state === 'asking' ? CLASS_COLOR.maestro : undefined} dimColor={r.state === 'idle'}>
@@ -2456,7 +2418,7 @@ export const register: Register = on => {
       if (shares.length === 0) return null
       return (
         <Text wrap="wrap">
-          <Text color={CLASS_COLOR.maestro}>🪙 {title}: </Text>
+          <Text color={CLASS_COLOR.maestro}>🔋 {title}: </Text>
           {shares.map((p, i) => (
             <Text dimColor={p.project === 'otros'}>
               {i > 0 ? ' · ' : ''}
@@ -2472,26 +2434,26 @@ export const register: Register = on => {
     const ledgerBlock = !isBookOpen ? null : (
       <Box flexDirection="column" borderStyle="round" borderColor={CLASS_COLOR.maestro} paddingX={1}>
         <Text bold color={CLASS_COLOR.maestro}>
-          {tr('📕 Libro del gremio', '📕 Guild ledger')} <Text dimColor>{tr('(todas las sesiones)', '(all sessions)')}</Text>
+          {tr('🗄️ Archivo de la Matrix', '🗄️ Matrix archive')} <Text dimColor>{tr('(todas las sesiones)', '(all sessions)')}</Text>
         </Text>
         <Text dimColor>
-          {ledger.missions} {ledger.missions === 1 ? tr('misión', 'quest') : tr('misiones', 'quests')} · {tr('buen botín', 'good loot')}{' '}
+          {ledger.missions} {ledger.missions === 1 ? tr('conexión', 'connection') : tr('conexiones', 'connections')} · {tr('buena descarga', 'good download')}{' '}
           {pct(ledger.good, ledger.good + ledger.bad)} ·{' '}
           {isShiftPlan(plan5.windows)
-            ? `${coinText(ledger.fivePoints)} ${tr('monedas de jornada gastadas', 'shift coins spent')}`
-            : `${coinText(ledger.weekPoints)} ${tr('monedas de semana gastadas', 'weekly coins spent')}`}
+            ? `${coinText(ledger.fivePoints)} ${tr('baterías de jornada gastadas', 'shift batteries spent')}`
+            : `${coinText(ledger.weekPoints)} ${tr('baterías de semana gastadas', 'weekly batteries spent')}`}
         </Text>
         <Text dimColor>
-          {tr('Del oro gastado: Clawd', 'Of the gold spent: Clawd')} {shareText(ledger.masterCost)} · {tr('los aventureros', 'the adventurers')}{' '}
+          {tr('De la energía gastada: el Arquitecto', 'Of the energy spent: the Architect')} {shareText(ledger.masterCost)} · {tr('los programas', 'the programs')}{' '}
           {shareText(ledger.cost)} · {tr('el Código', 'the Code')} {shareText(ledger.codeCost)}
         </Text>
         {projectLine(tr('Hoy', 'Today'), [dayOf(now)])}
         {projectLine(tr('Semana', 'Week'), lastDays(now, 7))}
         <Text bold color={CLASS_COLOR.maestro}>
           {tr('Clase', 'Class').padEnd(11)}
-          {tr('Misiones', 'Quests').padStart(9)}
-          {tr('Botín', 'Loot').padStart(8)}
-          {tr('Oro', 'Gold').padStart(10)}
+          {tr('Conexiones', 'Connections').padStart(9)}
+          {tr('Descarga', 'Download').padStart(8)}
+          {tr('Energía', 'Energy').padStart(10)}
         </Text>
         {classOrder.map(cls => {
           const c = ledger.byClass[cls]
@@ -2504,7 +2466,7 @@ export const register: Register = on => {
             </Text>
           )
         })}
-        <Text dimColor>{tr('Califica el botín en la ficha de cada aventurero: el Código aprende de eso.', "Rate the loot on each adventurer's sheet: the Code learns from it.")}</Text>
+        <Text dimColor>{tr('Califica la descarga en la ficha de cada programa: el Código aprende de eso.', "Rate the download on each program's sheet: the Code learns from it.")}</Text>
       </Box>
     )
 
@@ -2554,12 +2516,12 @@ export const register: Register = on => {
 
     const fieldTitle = (
       <Text color={CLASS_COLOR.maestro}>
-        {tr('🧭 En misión', '🧭 On quest')} <Text dimColor>· {running}</Text>
+        {tr('🔌 Conectados', '🔌 Jacked in')} <Text dimColor>· {running}</Text>
       </Text>
     )
     let fieldBlock
     if (active.length === 0) {
-      fieldBlock = <Text dimColor>{tr('🧭 Nadie en misión', '🧭 No one on a quest')}</Text>
+      fieldBlock = <Text dimColor>{tr('🔌 Nadie conectado', '🔌 No one jacked in')}</Text>
     } else if (level === 'full') {
       // Los que envió Clawd arriba; cada grupo bajo quien lo envió.
       const ids = new Set(active.map(u => u.id))
@@ -2571,7 +2533,7 @@ export const register: Register = on => {
           {grid(top, slot)}
           {parties.map(p => (
             <Box flexDirection="column">
-              <Text color={CLASS_COLOR[p.lead.cls]}>{tr(`↳ Grupo de ${p.lead.name}`, `↳ Party of ${p.lead.name}`)}</Text>
+              <Text color={CLASS_COLOR[p.lead.cls]}>{tr(`↳ Grupo de ${p.lead.name}`, `↳ Crew of ${p.lead.name}`)}</Text>
               {grid(p.kids, slot)}
             </Box>
           ))}
@@ -2629,7 +2591,7 @@ export const register: Register = on => {
       resting.length === 0 ? null : (
         <Box flexDirection="column">
           <Text color={CLASS_COLOR.maestro}>
-            {tr('🍺 Taberna', '🍺 Tavern')} <Text dimColor>· {resting.length}</Text>
+            {tr('⬜ Constructo', '⬜ Construct')} <Text dimColor>· {resting.length}</Text>
           </Text>
           <Box flexDirection="row" flexWrap="wrap">
             {(isTavernOpen ? resting : resting.slice(0, tavernRoom)).map(u => (
@@ -2667,11 +2629,11 @@ export const register: Register = on => {
       card = (
         <Box flexDirection="column" borderStyle="round" borderColor={CLASS_COLOR.maestro} paddingX={1}>
           <Text bold color={CLASS_COLOR.maestro}>
-            👑 {tr('Gran Maestre', 'Grand Master')} · {dm.isBusy ? tr('trabajando', 'working') : tr('en reposo', 'resting')}
+            🖥️ {tr('Arquitecto', 'Architect')} · {dm.isBusy ? tr('trabajando', 'working') : tr('en reposo', 'resting')}
           </Text>
           <Text dimColor>
             {tr(`${dm.actionCount} acciones en la sesión`, `${dm.actionCount} actions in the session`)} · {party.length}{' '}
-            {party.length === 1 ? tr('misión encargada', 'quest assigned') : tr('misiones encargadas', 'quests assigned')}
+            {party.length === 1 ? tr('conexión encargada', 'connection assigned') : tr('conexiones encargadas', 'connections assigned')}
           </Text>
           {dm.actions.slice(-5).map(a => (
             <Text dimColor wrap="truncate-end">
@@ -2693,9 +2655,9 @@ export const register: Register = on => {
       const parent = hero.parentId ? byId.get(hero.parentId) : undefined
       const state =
         hero.status === 'running'
-          ? tr('en misión', 'on a quest')
+          ? tr('conectado', 'jacked in')
           : hero.status === 'done'
-            ? tr('en la taberna', 'in the tavern')
+            ? tr('en el Constructo', 'in the Construct')
             : hero.status === 'aborted'
               ? tr('abandonó', 'left')
               : tr('herido', 'wounded')
@@ -2726,7 +2688,7 @@ export const register: Register = on => {
             const back = today.filter(x => x.status === 'done').length
             return (
               <Text dimColor>
-                {tr('Hoy', 'Today')}: {today.length} {tr('misiones', 'quests')} · {back} {tr('con botín', 'with loot')}
+                {tr('Hoy', 'Today')}: {today.length} {tr('conexiones', 'connections')} · {back} {tr('con descarga', 'with download')}
               </Text>
             )
           })()}
@@ -2736,17 +2698,17 @@ export const register: Register = on => {
                 {doingOf(hero)}
               </Text>
             ) : (
-              <Text>{tr('💰', '💰')} {cut(hero.report, isMore ? 600 : 160)}</Text>
+              <Text>{tr('💾', '💾')} {cut(hero.report, isMore ? 600 : 160)}</Text>
             )}
             <Text dimColor>
               ⏳ {duration(roundMs(hero))}
             {hero.actionCount > 0 ? ` · ${hero.actionCount} ${hero.actionCount === 1 ? tr('acción', 'action') : tr('acciones', 'actions')}` : ''}
-              {share !== null ? tr(` · 🪙 ${coinText(share)}`, ` · 🪙 ${coinText(share)}`) : ''}
+              {share !== null ? tr(` · 🔋 ${coinText(share)}`, ` · 🔋 ${coinText(share)}`) : ''}
             </Text>
             {isMore && (
               <Box flexDirection="column" marginTop={1}>
                 <Text dimColor>
-                  {CLASS_LEVEL[hero.cls]} · {tr('enviado por', 'sent by')} {parent ? parent.name : tr('Clawd', 'Clawd')} · {hero.kind}
+                  {CLASS_LEVEL[hero.cls]} · {tr('conectado por', 'jacked in by')} {parent ? parent.name : tr('el Arquitecto', 'the Architect')} · {hero.kind}
                   {hero.isBackground ? tr(' · en segundo plano', ' · in the background') : ''}
                 </Text>
                 <Text dimColor>
@@ -2764,7 +2726,7 @@ export const register: Register = on => {
                 {hero.tokens !== null && <Text dimColor>{tokens(hero.tokens)}</Text>}
                 {hero.saved !== null && Math.abs(hero.saved) > 0 && pts > 0 && (
                   <Text color={hero.saved > 0 ? CLASS_COLOR.bardo : RED}>
-                    🪙 {hero.saved > 0 ? tr('Ahorró', 'Saved') : tr('Costó', 'Cost')} ≈ {coinText(shareOf(Math.abs(hero.saved), gold, pts))}
+                    🔋 {hero.saved > 0 ? tr('Ahorró', 'Saved') : tr('Costó', 'Cost')} ≈ {coinText(shareOf(Math.abs(hero.saved), gold, pts))}
                     {hero.saved > 0 ? tr(' frente a un ', ' vs ') : tr(' más que un ', ' more than ')}
                     {tr(CLASS_LABEL[classOf(hero.baseline)], aOrAn(CLASS_LABEL[classOf(hero.baseline)]))}
                   </Text>
@@ -2788,7 +2750,7 @@ export const register: Register = on => {
             {(hero.status === 'done' || hero.status === 'failed') &&
               (hero.rating === null ? (
                 <Box gap={2} marginTop={1}>
-                  <Text dimColor>{tr('¿Te sirvió lo que trajo?', 'Was the loot useful?')}</Text>
+                  <Text dimColor>{tr('¿Te sirvió lo que trajo?', 'Was the download useful?')}</Text>
                   <Button key="bueno" onPress={() => rateLoot($, hero.id, 'up')}>
                     👍
                   </Button>
@@ -2826,10 +2788,10 @@ export const register: Register = on => {
                 key="pergamino"
                 onPress={async () => {
                   await update($, scrollHero, () => hero.id)
-                  await $.ui.open({ id: SCROLL, title: tr(`📜 Botín de ${hero.name}`, `📜 ${hero.name}'s loot`) })
+                  await $.ui.open({ id: SCROLL, title: tr(`📜 Descarga de ${hero.name}`, `📜 ${hero.name}'s download`) })
                 }}
               >
-                {tr('📜 Pergamino', '📜 Scroll')}
+                {tr('📜 Descarga completa', '📜 Full download')}
               </Button>
             )}
             {hero.report !== null && (
@@ -2839,12 +2801,12 @@ export const register: Register = on => {
                   const r = await $.ui.copy({ text: hero.report ?? '', surface: e.surface })
                   $.ui.toast(
                     r.isCopied
-                      ? tr(`📋 Copiaste el botín de ${hero.name}`, `📋 You copied ${hero.name}'s loot`)
+                      ? tr(`📋 Copiaste la descarga de ${hero.name}`, `📋 You copied ${hero.name}'s download`)
                       : tr('No pude copiarlo al portapapeles', "Couldn't copy it to the clipboard"),
                   )
                 }}
               >
-                {tr('📋 Copiar botín', '📋 Copy loot')}
+                {tr('📋 Copiar descarga', '📋 Copy download')}
               </Button>
             )}
             {hero.status === 'running' && (inFlight.get(hero.id) ?? 0) === 0 && now - (hero.lastActionAt ?? hero.roundStartedAt ?? hero.startedAt) > QUIET_MS && (
@@ -2854,11 +2816,11 @@ export const register: Register = on => {
                   const min = Math.floor((now - (hero.lastActionAt ?? hero.startedAt)) / 60_000)
                   await $.prompt.submit({
                     text: tr(
-                      `Desconecta a ${hero.name} (TaskStop con task_id ${hero.id}): lleva ${min} min sin acciones. No lo vuelvas a enviar sin preguntarme.`,
-                      `Stop ${hero.name} (TaskStop with task_id ${hero.id}): idle for ${min} min. Do not send it again without asking me.`,
+                      `Desconecta a ${hero.name} (TaskStop con task_id ${hero.id}): lleva ${min} min sin acciones. No lo vuelvas a conectar sin preguntarme.`,
+                      `Stop ${hero.name} (TaskStop with task_id ${hero.id}): idle for ${min} min. Do not jack it in again without asking me.`,
                     ),
                   })
-                  $.ui.toast(tr(`✂ Le pedí a Clawd que desconecte a ${hero.name}`, `✂ I asked Clawd to stop ${hero.name}`))
+                  $.ui.toast(tr(`✂ Le pedí al Arquitecto que desconecte a ${hero.name}`, `✂ I asked the Architect to stop ${hero.name}`))
                 }}
               >
                 {tr('✂ Desconectar', '✂ Disconnect')}
@@ -2880,7 +2842,7 @@ export const register: Register = on => {
         <Box flexDirection="column">
           <Button plain key="cronica" onPress={() => update($, chronicleOpen, isOpen => !isOpen)}>
             <Text color={CLASS_COLOR.maestro}>
-              {tr('📖 Crónica', '📖 Chronicle')} <Text dimColor>{isChronicleOpen ? '▾' : '▸'}</Text>
+              {tr('🧾 Registro', '🧾 Log')} <Text dimColor>{isChronicleOpen ? '▾' : '▸'}</Text>
             </Text>
           </Button>
           {events
@@ -2924,7 +2886,7 @@ export const register: Register = on => {
         )}
         {askBanner}
         {bellBanner}
-        {theme() === 'matrix' && <Raster key="lluvia" columns={rainCols} rows={RAIN_ROWS} cells={rainCells(rainCols, RAIN_ROWS, rainFrame)} />}
+        <Raster key="lluvia" columns={rainCols} rows={RAIN_ROWS} cells={rainCells(rainCols, RAIN_ROWS, rainFrame)} />
         {masterBlock}
         {quotaBlock}
         {ledgerBlock}

@@ -1,4 +1,4 @@
-// Las naves de Zion: en el tema Matrix cada sesión se llama como una nave de la
+// Las naves de Zion: en la Red cada sesión se llama como una nave de la
 // flota (la Nabucodonosor, la Logos, la Osiris…). El nombre sale del id de la
 // sesión, así que es el mismo cada vez que se abre; si otra sesión viva ya lo
 // lleva, se toma el siguiente libre.

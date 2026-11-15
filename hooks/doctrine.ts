@@ -92,17 +92,17 @@ export function setsLength(prompt: string): boolean {
   return SETS_LENGTH.test(prompt)
 }
 
-/** Las reglas que se suman al final del encargo: la misión acotada. */
+/** Las reglas que se suman al final del encargo: la conexión acotada. */
 export function brief(p: Plan, prompt: string): string {
   const lines = [
-    tr('[Misión acotada · Gremio de Clawd]', "[Scoped quest · Clawd's Guild]"),
-    tr('- Haz solo lo que pide la misión; no explores de más.', '- Do only what the quest asks; do not explore more than needed.'),
+    tr('[Conexión acotada · Matrix del Arquitecto]', "[Scoped connection · the Architect's Matrix]"),
+    tr('- Haz solo lo que pide la conexión; no explores de más.', '- Do only what the connection asks; do not explore more than needed.'),
   ]
   if (p.isReadOnly) {
     lines.push(
       tr(
         '- Solo lectura: no edites ni crees archivos; informa y quien te envió decide.',
-        '- Read-only: do not edit or create files; report back and whoever sent you decides.',
+        '- Read-only: do not edit or create files; report back and whoever jacked you in decides.',
       ),
     )
   }
@@ -118,38 +118,38 @@ export function brief(p: Plan, prompt: string): string {
   return `\n\n${lines.join('\n')}`
 }
 
-/** El esfuerzo que corresponde a cada modelo, cuando lo eligió Clawd. */
+/** El esfuerzo que corresponde a cada modelo, cuando lo eligió el Arquitecto. */
 export function effortFor(alias: Alias | 'fable' | null): GremioEffort {
   if (alias === 'haiku') return 'low'
   if (alias === 'sonnet') return 'medium'
   return 'high'
 }
 
-/** El Código que lee Clawd, el Gran Maestre (el modelo de la sesión principal). */
-export const DOCTRINE = `# Código del Gremio (mod "guild")
+/** El Código que lee el Arquitecto (el modelo de la sesión principal). */
+export const DOCTRINE = `# Código de la Matrix (mod "operator")
 
 Cuando delegues trabajo con la herramienta Agent, elige siempre el parámetro \`model\` según la tarea; el mod fija el esfuerzo de cada uno:
-- haiku (Pícaro, esfuerzo bajo): identificar, buscar, localizar, listar, clasificar o verificar un dato. Misión breve; el mod la deja en solo lectura.
-- sonnet (Bardo, esfuerzo medio): investigar, resumir, implementar algo acotado, escribir o traducir.
-- opus (Mago, esfuerzo alto): diseño, arquitectura, depuración difícil, revisión crítica o de seguridad.
-- fable (Archimago): solo si la tarea de verdad lo exige; el mod le pide permiso a la persona antes de enviarlo.
+- haiku (Centinela, esfuerzo bajo): identificar, buscar, localizar, listar, clasificar o verificar un dato. Conexión breve; el mod la deja en solo lectura.
+- sonnet (Agente, esfuerzo medio): investigar, resumir, implementar algo acotado, escribir o traducir.
+- opus (Oráculo, esfuerzo alto): diseño, arquitectura, depuración difícil, revisión crítica o de seguridad.
+- fable (Neo): solo si la tarea de verdad lo exige; el mod le pide permiso a la persona antes de conectarlo.
 
-Dale a cada agente una misión acotada: objetivo, dónde mirar, qué devolver y un largo máximo de informe. No uses forks (copias con toda la conversación) para tareas livianas. En \`description\` pon la tarea en pocas palabras: la persona la ve en su panel.
+Dale a cada agente una conexión acotada: objetivo, dónde mirar, qué devolver y un largo máximo de informe. No uses forks (copias con toda la conversación) para tareas livianas. En \`description\` pon la tarea en pocas palabras: la persona la ve en su panel.
 
-Si un aventurero que acaba de volver trabajó en lo mismo que la nueva tarea, retómalo con SendMessage (to: su id) en vez de enviar uno nuevo: conserva su memoria y no hay que explicarle todo otra vez. Al empezar cada turno el gremio te dice quiénes se pueden retomar.`
+Si un programa que acaba de desconectarse trabajó en lo mismo que la nueva tarea, retómalo con SendMessage (to: su id) en vez de conectar uno nuevo: conserva su memoria y no hay que explicarle todo otra vez. Al empezar cada turno el Operador te dice quiénes se pueden retomar.`
 
 
-const DOCTRINE_EN = `# Guild Code (mod "guild")
+const DOCTRINE_EN = `# Matrix Code (mod "operator")
 
 When you delegate work with the Agent tool, always pick the \`model\` parameter according to the task; the mod sets each one's effort:
-- haiku (Rogue, low effort): identify, search, locate, list, classify or verify a fact. Short quest; the mod makes it read-only.
-- sonnet (Bard, medium effort): research, summarize, implement something scoped, write or translate.
-- opus (Mage, high effort): design, architecture, hard debugging, critical or security review.
-- fable (Archmage): only if the task truly demands it; the mod asks the person for permission before sending it.
+- haiku (Sentinel, low effort): identify, search, locate, list, classify or verify a fact. Short connection; the mod makes it read-only.
+- sonnet (Agent, medium effort): research, summarize, implement something scoped, write or translate.
+- opus (Oracle, high effort): design, architecture, hard debugging, critical or security review.
+- fable (Neo): only if the task truly demands it; the mod asks the person for permission before jacking it in.
 
-Give each agent a scoped quest: goal, where to look, what to return and a maximum report length. Do not use forks (copies with the whole conversation) for light tasks. In \`description\` put the task in a few words: the person sees it in their panel.
+Give each agent a scoped connection: goal, where to look, what to return and a maximum report length. Do not use forks (copies with the whole conversation) for light tasks. In \`description\` put the task in a few words: the person sees it in their panel.
 
-If an adventurer who just came back worked on the same thing as the new task, resume it with SendMessage (to: its id) instead of sending a new one: it keeps its memory and you do not have to explain everything again. At the start of each turn the guild tells you who can be resumed.`
+If a program that just unplugged worked on the same thing as the new task, resume it with SendMessage (to: its id) instead of jacking in a new one: it keeps its memory and you do not have to explain everything again. At the start of each turn the Operator tells you who can be resumed.`
 
 /** El Código en el idioma de la sesión (el que se inyecta al modelo). */
 export function doctrineText(): string {

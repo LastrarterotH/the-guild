@@ -1,4 +1,4 @@
-// Lo que el gremio guarda durante la sesión.
+// Lo que el Operador guarda durante la sesión (los tipos conservan el nombre Gremio* de versiones anteriores).
 
 export type GremioClass = 'maestro' | 'archimago' | 'mago' | 'bardo' | 'picaro'
 
@@ -192,7 +192,7 @@ export type GremioRealmEntry = {
   doing?: string | null
   /** La terminal que la corre (TERM_PROGRAM): Apple_Terminal, ghostty, iTerm.app… */
   program?: string | null
-  /** Su nave de Zion (el nombre con que se la ve en el tema Matrix). */
+  /** Su nave de Zion (el nombre con que se la ve en la Red). */
   ship?: string
   /** No guarda la conversación (heredó la marca de sesión hija). */
   unsaved?: boolean
@@ -202,7 +202,7 @@ export type GremioLogEntry = { at: number; text: string; heroId?: string }
 
 declare module 'claude-code' {
   interface PluginState {
-    guild: {
+    operator: {
       heroes: GremioHero[]
       master: GremioMaster
       /** La ficha abierta: el id de un aventurero, "maestro" o null. */
@@ -245,7 +245,7 @@ declare module 'claude-code' {
       realmPicked: string | null
       /** El nombre corto de esta sesión en el reino. */
       label: string
-      /** Su nave de Zion (cómo se llama en el tema Matrix); se elige al abrir la sesión. */
+      /** Su nave de Zion (cómo se llama en la Red); se elige al abrir la sesión. */
       ship: string
       /** Lo que gastó esta sesión en la ventana de 5 h en curso (dólares de la API, estimado). */
       spend: { key: string; cost: number }

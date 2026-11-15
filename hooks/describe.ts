@@ -30,7 +30,7 @@ function host(url: unknown): string {
 export function describeTool(tool: string, input: Record<string, unknown>): string {
   switch (tool) {
     case 'Read':
-      return tr(`📖 lee ${fileName(input.file_path)}`, `📖 reads ${fileName(input.file_path)}`)
+      return tr(`🧾 lee ${fileName(input.file_path)}`, `🧾 reads ${fileName(input.file_path)}`)
     case 'Edit':
     case 'MultiEdit':
       return tr(`📝 edita ${fileName(input.file_path)}`, `📝 edits ${fileName(input.file_path)}`)
@@ -63,7 +63,7 @@ export function describeTool(tool: string, input: Record<string, unknown>): stri
     case 'ToolSearch':
       return tr('🧰 busca herramientas', '🧰 looks for tools')
     case 'Workflow':
-      return tr('🏰 convoca una hueste', '🏰 rallies a host')
+      return tr('🌐 orquesta un flujo de programas', '🌐 orchestrates a workflow')
   }
   if (tool.startsWith('mcp__')) {
     const [, server = '', name = ''] = tool.split('__')

@@ -1,15 +1,13 @@
-// El gremio habla español e inglés. Todo texto que lee una persona o el modelo
-// pasa por tr(es, en), que además lo recuenta en el tema elegido (hooks/tema.ts). El idioma se elige una vez por sesión (langFrom) y se
-// cambia con `/guild language`.
-
-import { recast } from './tema'
+// El Operador habla español e inglés. Todo texto que lee una persona o el
+// modelo pasa por tr(es, en). El idioma se elige una vez por sesión (langFrom) y
+// se cambia con `/operator language`.
 
 export type Lang = 'es' | 'en'
 
 // Español hasta que la sesión diga otra cosa (así las pruebas leen los textos originales).
 let current: Lang = 'es'
 
-/** El idioma en que habla el gremio ahora. */
+/** El idioma en que habla el Operador ahora. */
 export function lang(): Lang {
   return current
 }
@@ -19,9 +17,9 @@ export function setLang(next: Lang): void {
   current = next
 }
 
-/** El texto en el idioma actual: tr('Gremio abierto.', 'Guild opened.'). */
+/** El texto en el idioma actual: tr('Matrix abierta.', 'Matrix opened.'). */
 export function tr(es: string, en: string): string {
-  return recast(current === 'en' ? en : es, current)
+  return current === 'en' ? en : es
 }
 
 /** Si un nombre de idioma o un locale es español («Español», "Spanish", "es-CL", "es_ES.UTF-8"). */
@@ -43,7 +41,7 @@ export function langFrom(setting: string | null | undefined, locales: ReadonlyAr
   return 'en'
 }
 
-/** Lo que pide `/guild language <x>`: un idioma, 'auto' para seguir a Claude Code, o null si no se entiende. */
+/** Lo que pide `/operator language <x>`: un idioma, 'auto' para seguir a Claude Code, o null si no se entiende. */
 export function langChoice(text: string): Lang | 'auto' | null {
   const t = text.trim().toLowerCase()
   if (/^(auto|automático|automatico)$/.test(t)) return 'auto'

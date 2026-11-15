@@ -1,13 +1,13 @@
-// Apodos de fantasía para los aventureros, según su misión. Sin modelo: por
+// Apodos para los programas, según su conexión. Sin modelo: por
 // palabras clave del encargo, siempre el mismo para el mismo encargo.
 
 import type { GremioClass } from '../types'
 import { tr } from './i18n'
 
 const BY_WORD: Array<[RegExp, () => string]> = [
-  [/(dise[ñn]|arquitect|planific|\bplan\b|design|architect|blueprint|\bplanning)/i, () => tr('el Arquitecto', 'the Architect')],
+  [/(dise[ñn]|arquitect|planific|\bplan\b|design|architect|blueprint|\bplanning)/i, () => tr('el Diseñador', 'the Designer')],
   [/(depur|debug|arregl|corr[ií]g|\bfix|\bbug|error|falla|repair|\bheal|\bpatch|troubleshoot|\bresolv)/i, () => tr('el Sanador', 'the Healer')],
-  [/(audit|segur|security|revis|review|inspect|\bvet\b)/i, () => tr('el Centinela', 'the Sentinel')],
+  [/(audit|segur|security|revis|review|inspect|\bvet\b)/i, () => tr('el Inspector', 'the Inspector')],
   [/(prueb|\btest|verific|comprueb|\bcheck|valid|\bverif|\bensure|\bconfirm)/i, () => tr('el Vigía', 'the Lookout')],
   [/(traduc|translat|\blocali[sz]e)/i, () => tr('el Políglota', 'the Polyglot')],
   [/(resum|summar|cr[oó]nica|chronicle|\brecap|\bdigest)/i, () => tr('el Cronista', 'the Chronicler')],

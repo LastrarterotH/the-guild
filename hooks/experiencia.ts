@@ -48,7 +48,7 @@ export function promote(xp: Xp, task: GremioTask, cls: GremioClass): { cls: Grem
   if (bad < 2 || bad / list.length < 0.4) return null
   const up = LADDER[at + 1]
   if (!up) return null
-  return { cls: up, why: tr(`fallaron ${bad} de sus últimas ${list.length} misiones de ${TASK_WORD[task]()}`, `${bad} of their last ${list.length} quests failed (${TASK_WORD[task]()})`) }
+  return { cls: up, why: tr(`fallaron ${bad} de sus últimas ${list.length} conexiones de ${TASK_WORD[task]()}`, `${bad} of their last ${list.length} connections failed (${TASK_WORD[task]()})`) }
 }
 
 /** Cómo le va a una clase en un tipo de misión, para la ficha. */
@@ -67,15 +67,15 @@ export function parseVerdict(text: string): { task: GremioTask; writes: boolean 
 }
 
 export const CLASSIFIER_SYSTEM =
-  'Clasificas misiones para un gremio de agentes de IA. Respondes solo con un JSON de una línea, sin explicación.'
+  'Clasificas tareas para un equipo de agentes de IA. Respondes solo con un JSON de una línea, sin explicación.'
 
 export function classifierPrompt(description: string, prompt: string): string {
-  return `Misión: «${description}»
+  return `Tarea: «${description}»
 Encargo (comienzo): «${prompt.slice(0, 600)}»
 
 Responde exactamente con {"tipo": "identificar" | "investigar" | "disenar", "escribe": true | false}
 - identificar: buscar, localizar, listar, verificar un dato, clasificar.
 - investigar: investigar, resumir, escribir o traducir textos, implementar algo acotado.
 - disenar: diseño, arquitectura, depuración difícil, revisión crítica o de seguridad.
-- escribe: true solo si la misión necesita crear o editar archivos.`
+- escribe: true solo si la tarea necesita crear o editar archivos.`
 }

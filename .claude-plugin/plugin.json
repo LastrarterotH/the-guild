@@ -1,6 +1,6 @@
 {
-  "name": "guild",
-  "version": "0.27.2",
-  "description": "The Guild: Clawd is the Grand Master and every agent is an adventurer (Rogue, Bard, Mage, Archmage) in a live pixel-art panel, with sounds and a Guild Code that picks each agent's model and effort. Speaks English and Spanish, and can be retold inside the Matrix (the Architect, Sentinels, Agents, the Oracle and Neo).",
+  "name": "operator",
+  "version": "0.28.0",
+  "description": "The Operator: watch the Matrix from the screens. The main session is the Architect and every agent is a program (Sentinel, Agent, the Oracle, Neo) in a live pixel-art panel with digital rain, sounds, ships of Zion for your other sessions, and a Matrix Code that picks each agent's model and effort. Speaks English and Spanish.",
   "types": "./types/index.d.ts"
 }

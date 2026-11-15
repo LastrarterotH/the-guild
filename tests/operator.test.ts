@@ -10,7 +10,7 @@ import { classOf, describeTool, firstSentence, modelName } from '../hooks/descri
 import { chargeBar, EMPTY_QUOTA, isWeekHigh, leftColor, primary, sessionPrimary, whenText } from '../hooks/cuota'
 import { plan } from '../hooks/doctrine'
 import { langChoice, langFrom, setLang, tr } from '../hooks/i18n'
-import { rain, rainCells, recastAs, setTheme, themeChoice } from '../hooks/tema'
+import { rain, rainCells } from '../hooks/tema'
 import { OLD_STORE, pickImport } from '../hooks/migrar'
 import { SHIPS, shipFor } from '../hooks/naves'
 import { nameOf } from '../hooks/reino'
@@ -18,9 +18,9 @@ import { CELLS, spriteCells, spriteGrid } from '../hooks/sprites'
 
 const PANE = {
   component: 'Pane',
-  requestId: 'guild',
+  requestId: 'operator',
   props: {
-    title: 'Gremio de Clawd',
+    title: 'Matrix del Arquitecto',
     isFocused: false,
     bodyColumns: 60,
     placement: 'dock',
@@ -43,7 +43,7 @@ const SPAWN = {
 
 const USAGE = { input_tokens: 1000, output_tokens: 200, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
 
-test('un aventurero aparece con su clase, su ficha, vuelve a la taberna y suena', async ($, on) => {
+test('un programa aparece con su clase, su ficha, vuelve al Constructo y suena', async ($, on) => {
   const clock = mock.clock(on, { now: 1_000_000 })
   mock.store(on)
   const played: string[] = []
@@ -59,18 +59,18 @@ test('un aventurero aparece con su clase, su ficha, vuelve a la taberna y suena'
   await $.agent.spawn(SPAWN)
   await $.turn.start({ text: SPAWN.prompt, turnId: 't1', agentId: 'a1' })
 
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
-  expect((await ui.find({ key: 'sel-a1' }))?.text).toContain('Pícaro 1')
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
+  expect((await ui.find({ key: 'sel-a1' }))?.text).toContain('Centinela 1')
   expect(await ui.find({ type: 'Raster', key: 'u-a1' })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /envió a Pícaro 1/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /conectó a Centinela 1/ })).toBeDefined()
 
   await ui.press({ key: 'sel-a1' })
   expect(await ui.find({ key: 'ver' })).toBeDefined()
   // Lo técnico (nivel, esfuerzo) queda en «Más».
-  expect(await ui.find({ type: 'Text', text: /Nv\. 5/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /v0\.9/ })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: /Esfuerzo:/ })).toBeUndefined()
   await ui.press({ key: 'mas' })
-  expect(await ui.find({ type: 'Text', text: /^Nv\. 5 · enviado por Clawd/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^v0\.9 · conectado por el Arquitecto/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /Esfuerzo: bajo · Permisos: solo lectura/ })).toBeDefined()
 
   await $.turn.complete({
@@ -82,7 +82,7 @@ test('un aventurero aparece con su clase, su ficha, vuelve a la taberna y suena'
     reason: 'answer',
     usage: { model: 'claude-haiku-5-5', ...USAGE },
   })
-  expect(await ui.find({ type: 'Text', text: /volvió con el botín/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /se desconectó con la descarga/ })).toBeDefined()
   // Primero se queda unos segundos en el campo con su botín; después entra a la taberna.
   expect(await ui.find({ type: 'Raster', key: 'u-a1' })).toBeDefined()
   await clock.advance(6500)
@@ -93,7 +93,7 @@ test('un aventurero aparece con su clase, su ficha, vuelve a la taberna y suena'
   await ui.unmount()
 })
 
-test('el Maestro: melodía si termina bien, trompeta triste si falla, nada si se interrumpe o se silencia', async ($, on) => {
+test('el Arquitecto: suena si termina bien, estática si falla, nada si se interrumpe o se silencia', async ($, on) => {
   mock.clock(on, { now: 1_000_000 })
   mock.store(on)
   const played: string[] = []
@@ -111,14 +111,14 @@ test('el Maestro: melodía si termina bien, trompeta triste si falla, nada si se
   await $.turn.complete({ ...done, turnId: 'm3', reason: 'aborted', isAborted: true })
   expect(played).toEqual(['sounds/maestro.wav', 'sounds/caido.wav'])
 
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
   await ui.press({ key: 'sonido' })
   await $.turn.complete({ ...done, turnId: 'm4' })
   expect(played).toEqual(['sounds/maestro.wav', 'sounds/caido.wav'])
   await ui.unmount()
 })
 
-test('cada aventurero piensa con el esfuerzo que le asignó el Maestro', async ($, on) => {
+test('cada programa piensa con el esfuerzo que le asignó el Arquitecto', async ($, on) => {
   mock.clock(on, { now: 1_000_000 })
   let effort: unknown
   on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: 'e1' }))
@@ -134,17 +134,17 @@ test('cada aventurero piensa con el esfuerzo que le asignó el Maestro', async (
   expect(effort).toBe('low')
 })
 
-test('lo que hace la sesión principal se ve en el Maestro', async ($, on) => {
+test('lo que hace la sesión principal se ve en el Arquitecto', async ($, on) => {
   mock.clock(on, { now: 1_000_000 })
   on('tool.call', () => ({ result: 'ok' }))
   await $.tool.call({ tool: 'Bash', command: 'ls', description: 'listando la carpeta' })
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
   expect(await ui.find({ type: 'Text', text: /listando la carpeta/ })).toBeDefined()
   expect(await ui.find({ type: 'Raster', key: 'maestro' })).toBeDefined()
   await ui.unmount()
 })
 
-test('con muchos en misión el panel pasa a mini y luego a hueste', async ($, on) => {
+test('con muchos conectados el panel pasa a mini y luego a equipos', async ($, on) => {
   mock.clock(on, { now: 1_000_000 })
   let n = 0
   on('agent.spawn', () => {
@@ -152,21 +152,21 @@ test('con muchos en misión el panel pasa a mini y luego a hueste', async ($, on
     return { model: n % 2 ? 'claude-haiku-5-5' : 'claude-sonnet-5-5', agentId: `h${n}` }
   })
   for (let i = 0; i < 9; i++) await $.agent.spawn({ ...SPAWN, tool_use_id: `tu${i}` })
-  let ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
+  let ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
   expect(await ui.find({ type: 'Raster', key: 'm-h1' })).toBeDefined()
   expect(await ui.find({ type: 'Raster', key: 'u-h1' })).toBeUndefined()
   await ui.unmount()
 
   for (let i = 9; i < 24; i++) await $.agent.spawn({ ...SPAWN, tool_use_id: `tu${i}` })
-  ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
-  expect(await ui.find({ type: 'Text', text: /Pícaros ×12/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /Bardos ×12/ })).toBeDefined()
+  ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
+  expect(await ui.find({ type: 'Text', text: /Centinelas ×12/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Agentes ×12/ })).toBeDefined()
   await ui.press({ key: 'hueste-picaro' })
   expect(await ui.find({ key: 'sel-h1' })).toBeDefined()
   await ui.unmount()
 })
 
-test('el Código asigna el modelo y acota la misión', async ($, on) => {
+test('el Código asigna el modelo y acota la conexión', async ($, on) => {
   mock.clock(on, { now: 1_000_000 })
   let seen: { model?: string; prompt: string } = { prompt: '' }
   on('agent.spawn', (_, e) => {
@@ -176,7 +176,7 @@ test('el Código asigna el modelo y acota la misión', async ($, on) => {
   const { model: _drop, ...noModel } = SPAWN
   await $.agent.spawn({ ...noModel, description: 'resumir el documento', prompt: 'Resume este documento en cinco puntos.' })
   expect(seen.model).toBe('sonnet')
-  expect(seen.prompt).toContain('[Misión acotada · Gremio de Clawd]')
+  expect(seen.prompt).toContain('[Conexión acotada · Matrix del Arquitecto]')
   expect(seen.prompt).toContain('máximo 500 palabras')
 })
 
@@ -192,14 +192,14 @@ test('un clon con toda la conversación para algo liviano se frena', async ($, o
   expect('deny' in r && r.deny).toContain('fork')
 })
 
-test('el Archimago pide permiso y respeta la respuesta', async ($, on) => {
+test('Neo pide permiso y respeta la respuesta', async ($, on) => {
   mock.clock(on, { now: 1_000_000 })
   let asked = 0
   on('tool.call', { tool: 'AskUserQuestion' }, (_, e) => {
     asked += 1
     const questions = (e as unknown as { questions: Array<{ question: string }> }).questions
     const q = questions[0]?.question ?? ''
-    return { result: { questions, answers: { [q]: 'Mejor un Mago (Opus)' } } }
+    return { result: { questions, answers: { [q]: 'Mejor un Oráculo (Opus)' } } }
   })
   let seen: string | undefined
   on('agent.spawn', (_, e) => {
@@ -231,24 +231,24 @@ test('un teammate con Fable también pide permiso', async ($, on) => {
   expect('deny' in r && r.deny).toContain('Fable')
 })
 
-test('con el Código apagado el Maestro envía sin reglas', async ($, on) => {
+test('con el Código apagado el Arquitecto conecta sin reglas', async ($, on) => {
   mock.clock(on, { now: 1_000_000 })
   let seen: { model?: string; prompt: string } = { prompt: '' }
   on('agent.spawn', (_, e) => {
     seen = { model: e.model, prompt: e.prompt }
     return { model: 'claude-opus-5-5', agentId: 'd1' }
   })
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
   await ui.press({ key: 'doctrina' })
   expect((await ui.find({ key: 'doctrina' }))?.text).toBe('📜✗')
   const { model: _drop, ...noModel } = SPAWN
   await $.agent.spawn(noModel)
   expect(seen.model).toBe(undefined)
-  expect(seen.prompt).not.toContain('[Misión acotada')
+  expect(seen.prompt).not.toContain('[Conexión acotada')
   await ui.unmount()
 })
 
-test('el Código entra en las instrucciones del Maestro', async ($, on) => {
+test('el Código entra en las instrucciones del Arquitecto', async ($, on) => {
   on('prompt.compose', () => ({ sections: [{ id: 'intro', text: 'hola', scope: 'shared' }] }))
   const r = await $.prompt.compose({
     model: 'claude-opus-5-5',
@@ -258,15 +258,15 @@ test('el Código entra en las instrucciones del Maestro', async ($, on) => {
     outputStyle: null,
     traits: [],
   })
-  expect(r.sections.map(s => s.id)).toContain('guild:code')
+  expect(r.sections.map(s => s.id)).toContain('operator:code')
 })
 
 test('fuera de la terminal dibuja una versión de texto', async ($, on) => {
   mock.clock(on, { now: 1_000_000 })
   on('tool.call', () => ({ result: 'ok' }))
   await $.tool.call({ tool: 'Read', file_path: '/a/b.md' })
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'desktop', ...PANE })
-  expect(await ui.find({ type: 'Text', text: /Gran Maestre: 📖 lee b\.md/ })).toBeDefined()
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'desktop', ...PANE })
+  expect(await ui.find({ type: 'Text', text: /Arquitecto: 🧾 lee b\.md/ })).toBeDefined()
   await ui.unmount()
 })
 
@@ -304,7 +304,7 @@ const measure = (five: number, week: number) => ({
   changed: ['rateLimits' as const],
 })
 
-test('la cuota del plan se reparte entre el Maestro y los aventureros', async ($, on) => {
+test('la cuota del plan se reparte entre el Arquitecto y los programas', async ($, on) => {
   const clock = mock.clock(on, { now: T0 })
   mock.store(on)
   on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: 'o1' }))
@@ -318,8 +318,8 @@ test('la cuota del plan se reparte entre el Maestro y los aventureros', async ($
   await clock.advance(30 * 60_000)
   await $.session.measure(measure(14, 6))
 
-  // Pesos: Maestro 0,50 y Pícaro 0,03 (precio equivalente). La sesión consumió 4 puntos de 5 h.
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
+  // Pesos: Arquitecto 0,50 y Centinela 0,03 (precio equivalente). La sesión consumió 4 puntos de 5 h.
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
   // Cerrado: una línea por bolsa, con sus 🪙, lo que queda y cuándo se rellena.
   expect((await ui.find({ key: 'bolsa-five_hour' }))?.text).toBe('▸ Jornada ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱ 86 %  ↻ 1 h 30 min')
   expect((await ui.find({ key: 'bolsa-seven_day' }))?.text).toBe('▸ Semana  ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▱ 94 %  ↻ 2 d 23 h')
@@ -329,18 +329,18 @@ test('la cuota del plan se reparte entre el Maestro y los aventureros', async ($
   await ui.press({ key: 'bolsa-five_hour' })
   expect((await ui.find({ key: 'bolsa-five_hour' }))?.text).toMatch(/^▾ Jornada/)
   expect(await ui.find({ type: 'Text', text: /^Gastas 8 por hora · te alcanza$/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /^Esta sesión gastó 4: Clawd 3,8 · Pícaros 0,2$/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /El Código te ahorró ≈ 8,8 frente a mandar solo Magos/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^Esta sesión gastó 4: el Arquitecto 3,8 · Centinelas 0,2$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /El Código te ahorró ≈ 8,8 frente a mandar solo Oráculos/ })).toBeDefined()
   // Abrir la semana cierra la jornada.
   await ui.press({ key: 'bolsa-seven_day' })
   expect(await ui.find({ type: 'Text', text: /^Gastas/ })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: /^Esta sesión gastó 1$/ })).toBeDefined()
-  expect((await ui.find({ key: 'libro' }))?.text).toBe('📕 Libro ▸')
+  expect((await ui.find({ key: 'libro' }))?.text).toBe('🗄️ Archivo ▸')
   await ui.press({ key: 'libro' })
-  expect((await ui.find({ key: 'libro' }))?.text).toBe('📕 Libro ▾')
-  expect(await ui.find({ type: 'Text', text: /1 misión · buen botín 100% · 4 monedas de jornada gastadas/ })).toBeDefined()
+  expect((await ui.find({ key: 'libro' }))?.text).toBe('🗄️ Archivo ▾')
+  expect(await ui.find({ type: 'Text', text: /1 conexión · buena descarga 100% · 4 baterías de jornada gastadas/ })).toBeDefined()
   await ui.press({ key: 'sel-o1' })
-  expect(await ui.find({ type: 'Text', text: /· 🪙 0,2$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /· 🔋 0,2$/ })).toBeDefined()
   await ui.unmount()
 })
 
@@ -351,7 +351,7 @@ test('si el ritmo no alcanza, el panel avisa a qué hora llegarías al 100%', as
   await $.session.measure(measure(60, 20))
   await clock.advance(20 * 60_000)
   await $.session.measure(measure(80, 22))
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
   // El aviso se ve sin abrir nada: reemplaza al reloj de la línea.
   expect((await ui.find({ key: 'bolsa-five_hour' }))?.text).toMatch(/^▸ Jornada ▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱ 20 %  se acaba (hoy|mañana|el \S+) \d\d:\d\d$/)
   await ui.press({ key: 'bolsa-five_hour' })
@@ -360,27 +360,27 @@ test('si el ritmo no alcanza, el panel avisa a qué hora llegarías al 100%', as
   await ui.unmount()
 })
 
-test('tu calificación corrige el libro y la experiencia', async ($, on) => {
+test('tu calificación corrige el archivo y la experiencia', async ($, on) => {
   mock.clock(on, { now: 1_000_000 })
   mock.store(on)
   on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: 'r1' }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
   await $.agent.spawn(SPAWN)
   await $.turn.complete({ answer: 'listo', durationMs: 900, isAborted: false, turnId: 't1', agentId: 'r1', reason: 'answer', usage: HAIKU_USAGE })
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
   await ui.press({ key: 'sel-r1' })
   await ui.press({ key: 'malo' })
   await ui.press({ key: 'libro' })
-  expect(await ui.find({ type: 'Text', text: /1 misión · buen botín 0%/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /Calificaste el botín de Pícaro 1: malo/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /1 conexión · buena descarga 0%/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Calificaste la descarga de Centinela 1: malo/ })).toBeDefined()
   // Se califica una sola vez: después queda el resultado y no hay botones.
   expect(await ui.find({ key: 'bueno' })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: /^👎 No te sirvió · el Código lo anotó/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /1 misión · buen botín 0%/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /1 conexión · buena descarga 0%/ })).toBeDefined()
   await ui.unmount()
 })
 
-test('si los Pícaros vienen fallando, el Código sube la misión a Bardo', async ($, on) => {
+test('si los Centinelas vienen fallando, el Código sube la conexión a Agente', async ($, on) => {
   mock.clock(on, { now: 1_000_000 })
   mock.store(on, {
     experiencia: {
@@ -399,12 +399,12 @@ test('si los Pícaros vienen fallando, el Código sube la misión a Bardo', asyn
   const { model: _drop, ...noModel } = SPAWN
   await $.agent.spawn(noModel)
   expect(seen).toBe('sonnet')
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
-  expect(await ui.find({ type: 'Text', text: /Los Pícaros fallaron 2 de sus últimas 3 misiones/ })).toBeDefined()
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
+  expect(await ui.find({ type: 'Text', text: /Los Centinelas fallaron 2 de sus últimas 3 conexiones/ })).toBeDefined()
   await ui.unmount()
 })
 
-test('Haiku clasifica la misión cuando responde', async ($, on) => {
+test('Haiku clasifica la conexión cuando responde', async ($, on) => {
   mock.clock(on, { now: 1_000_000 })
   mock.store(on)
   let asked = 0
@@ -429,7 +429,7 @@ test('Haiku clasifica la misión cuando responde', async ($, on) => {
   expect(seen).toBe('opus')
 })
 
-test('/gremio cuentas resume la tesorería y el libro', async ($, on) => {
+test('/operador cuentas resume la energía y el archivo', async ($, on) => {
   mock.clock(on, { now: 1_000_000 })
   mock.store(on)
   on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: 'c9' }))
@@ -437,29 +437,29 @@ test('/gremio cuentas resume la tesorería y el libro', async ($, on) => {
   await $.agent.spawn(SPAWN)
   await $.turn.complete({ answer: 'listo', durationMs: 900, isAborted: false, turnId: 't1', agentId: 'c9', reason: 'answer', usage: HAIKU_USAGE })
   const r = await $.command.run({
-    command: 'gremio',
+    command: 'operador',
     args: 'cuentas',
     origin: { kind: 'composer' },
     presentation: { isFullscreen: true, columns: 160 },
   })
   const text = 'text' in r ? String(r.text) : ''
-  expect(text).toContain('**💰 Tesoro del gremio**')
-  expect(text).toContain('| Pícaro | 1 | 100% | 100% |')
+  expect(text).toContain('**🔋 Energía de la Matrix**')
+  expect(text).toContain('| Centinela | 1 | 100% | 100% |')
 })
 
-test('la ficha del Maestro: vida = contexto, turno, grupo y ajustes con iconos', async ($, on) => {
+test('la ficha del Arquitecto: señal = contexto, turno, grupo y ajustes con iconos', async ($, on) => {
   const clock = mock.clock(on, { now: T0 })
   mock.store(on)
   on('session.measure', (_, e) => ({ changed: e.changed }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('tool.call', () => ({ result: 'ok' }))
   on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: 'f1' }))
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
-  expect((await ui.find({ key: 'vida' }))?.text).toBe('▸ Vida    se mide con la próxima respuesta')
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
+  expect((await ui.find({ key: 'vida' }))?.text).toBe('▸ Señal   se mide con la próxima respuesta')
   expect(await ui.find({ type: 'Text', text: /tranquilo|siempre con tu permiso|Código:/ })).toBeUndefined()
 
   await $.session.measure({ ...measure(10, 5), context: { window: 1_000_000, tokens: 320_000, percent: 32 }, changed: ['context', 'rateLimits'] })
-  expect((await ui.find({ key: 'vida' }))?.text).toBe('▸ Vida    ♥ ♥ ♥ ♥ ♥ ♥ ♥ · · ·  68')
+  expect((await ui.find({ key: 'vida' }))?.text).toBe('▸ Señal   ♥ ♥ ♥ ♥ ♥ ♥ ♥ · · ·  68')
   await ui.press({ key: 'vida' })
   expect(await ui.find({ type: 'Text', text: /^Contexto: 320 k de 1 M tokens$/ })).toBeDefined()
 
@@ -469,7 +469,7 @@ test('la ficha del Maestro: vida = contexto, turno, grupo y ajustes con iconos',
   await $.tool.call({ tool: 'Bash', command: 'ls', description: 'mirando otra vez' })
   expect(await ui.find({ type: 'Text', text: /^  Turno   1 min 30 s · 2 acciones$/ })).toBeDefined()
   await $.agent.spawn(SPAWN)
-  expect((await ui.find({ key: 'hoy' }))?.text).toBe('  Hoy     1 misión')
+  expect((await ui.find({ key: 'hoy' }))?.text).toBe('  Hoy     1 conexión')
 
   expect((await ui.find({ key: 'sonido' }))?.text).toBe('🔊')
   await ui.press({ key: 'sonido' })
@@ -478,7 +478,7 @@ test('la ficha del Maestro: vida = contexto, turno, grupo y ajustes con iconos',
   await ui.unmount()
 })
 
-test('un aventurero retomado vuelve a salir con su nombre, en otra ronda', async ($, on) => {
+test('un programa retomado vuelve a salir con su nombre, en otra ronda', async ($, on) => {
   const clock = mock.clock(on, { now: 1_000_000 })
   mock.store(on)
   let n = 0
@@ -495,21 +495,21 @@ test('un aventurero retomado vuelve a salir con su nombre, en otra ronda', async
   await $.agent.spawn({ ...SPAWN, prompt: 'Ahora busca también el favicon.', resume: { agentId: 'r1' } })
   await clock.advance(20_000)
 
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
-  expect((await ui.find({ key: 'sel-r1' }))?.text).toContain('Pícaro 1')
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
+  expect((await ui.find({ key: 'sel-r1' }))?.text).toContain('Centinela 1')
   expect(await ui.find({ type: 'Raster', key: 'u-r1' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /^⏳ 20 s · ronda 2$/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /📨 Clawd le escribió de nuevo a Pícaro 1: Ahora busca también el favicon\./ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /📨 El Arquitecto le escribió de nuevo a Centinela 1: Ahora busca también el favicon\./ })).toBeDefined()
   await ui.press({ key: 'sel-r1' })
   await ui.press({ key: 'mas' })
   expect(await ui.find({ type: 'Text', text: /📨 Último mensaje: Ahora busca también el favicon\./ })).toBeDefined()
   // El siguiente nuevo sigue la cuenta: el retomado no gastó un número.
   await $.agent.spawn({ ...SPAWN, tool_use_id: 'tu2' })
-  expect((await ui.find({ key: 'sel-r2' }))?.text).toContain('Pícaro 2')
+  expect((await ui.find({ key: 'sel-r2' }))?.text).toContain('Centinela 2')
   await ui.unmount()
 })
 
-test('la crónica muestra las últimas tres y se abre al tocarla', async ($, on) => {
+test('el registro muestra las últimas tres y se abre al tocarla', async ($, on) => {
   mock.clock(on, { now: 1_000_000 })
   mock.store(on)
   let n = 0
@@ -517,13 +517,13 @@ test('la crónica muestra las últimas tres y se abre al tocarla', async ($, on)
     n += 1
     return { model: 'claude-haiku-5-5', agentId: `c${n}` }
   })
-  for (let i = 0; i < 5; i++) await $.agent.spawn({ ...SPAWN, tool_use_id: `tu${i}`, description: `misión ${i + 1}` })
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
-  expect((await ui.find({ key: 'cronica' }))?.text).toBe('📖 Crónica ▸')
-  expect(await ui.find({ type: 'Text', text: /🧭 Clawd envió a Pícaro 5, el Rastreador: misión 5$/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /misión 2$/ })).toBeUndefined()
+  for (let i = 0; i < 5; i++) await $.agent.spawn({ ...SPAWN, tool_use_id: `tu${i}`, description: `tarea ${i + 1}` })
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
+  expect((await ui.find({ key: 'cronica' }))?.text).toBe('🧾 Registro ▸')
+  expect(await ui.find({ type: 'Text', text: /🔌 El Arquitecto conectó a Centinela 5, el Rastreador: tarea 5$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /tarea 2$/ })).toBeUndefined()
   await ui.press({ key: 'cronica' })
-  expect(await ui.find({ type: 'Text', text: /misión 2$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /tarea 2$/ })).toBeDefined()
   await ui.unmount()
 })
 
@@ -543,7 +543,7 @@ test('cada celda de cada sprite lleva a lo más dos colores', () => {
   expect([...new Set(bad)]).toEqual([])
 })
 
-test('el ruteo del Código queda fijo para las misiones tipo', () => {
+test('el ruteo del Código queda fijo para las conexiones tipo', () => {
   const cases: Array<[string, string, string, string, boolean]> = [
     ['buscar el logo', 'Encuentra dónde se define el logo', 'haiku', 'low', true],
     ['listar los sonidos', 'Lista los archivos de sounds/', 'haiku', 'low', true],
@@ -585,7 +585,7 @@ test('el panel se dibuja a 40, 60 y 110 columnas sin que las líneas fijas se sa
   await clock.advance(60_000)
   await $.turn.complete({ answer: 'Está en src/theme.ts', durationMs: 900, isAborted: false, turnId: 't1', agentId: 'w1', reason: 'answer', usage: HAIKU_USAGE })
   for (const cols of [40, 60, 110]) {
-    const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE, props: { ...PANE.props, bodyColumns: cols } })
+    const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE, props: { ...PANE.props, bodyColumns: cols } })
     if (cols === 40) {
       await ui.press({ key: 'libro' })
       await ui.press({ key: 'cronica' })
@@ -624,17 +624,17 @@ test('lo que apagaste se recuerda en la sesión siguiente y la línea de estado 
   on('session.start', (_, e) => e as never)
   on('session.measure', (_, e) => ({ changed: e.changed }))
   await $.session.start({ cwd: '/x', surface: 'terminal', isInteractive: true } as never)
-  expect(shown.at(-1)).toBe('♥ 68 · 🪙 72 · 📜✗ sin Código')
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
+  expect(shown.at(-1)).toBe('♥ 68 · 🔋 72 · 📜✗ sin Código')
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
   expect((await ui.find({ key: 'sonido' }))?.text).toBe('🔇')
   expect((await ui.find({ key: 'doctrina' }))?.text).toBe('📜✗')
-  expect(await ui.find({ type: 'Text', text: /Clawd abre el gremio$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /el Arquitecto abre la Matrix$/ })).toBeDefined()
   await ui.press({ key: 'doctrina' })
-  expect(shown.at(-1)).toBe('♥ 68 · 🪙 72')
+  expect(shown.at(-1)).toBe('♥ 68 · 🔋 72')
   await ui.unmount()
 })
 
-test('con poca vida Clawd avisa una sola vez y se rearma tras un /compact', async ($, on) => {
+test('con poca señal el Arquitecto avisa una sola vez y se rearma tras un /compact', async ($, on) => {
   mock.clock(on, { now: T0 })
   mock.store(on)
   const toasts: string[] = []
@@ -647,16 +647,16 @@ test('con poca vida Clawd avisa una sola vez y se rearma tras un /compact', asyn
   await $.session.measure(ctx(70))
   await $.session.measure(ctx(82))
   await $.session.measure(ctx(85))
-  expect(toasts).toEqual(['💤 A Clawd le queda poca vida (18 %): un /compact lo deja como nuevo.'])
+  expect(toasts).toEqual(['💤 Al Arquitecto le queda poca señal (18 %): un /compact lo deja como nuevo.'])
   await $.session.measure(ctx(40))
   await $.session.measure(ctx(90))
   expect(toasts).toHaveLength(2)
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
-  expect(await ui.find({ type: 'Text', text: /💤 A Clawd le queda poca vida \(10 %\)/ })).toBeDefined()
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
+  expect(await ui.find({ type: 'Text', text: /💤 Al Arquitecto le queda poca señal \(10 %\)/ })).toBeDefined()
   await ui.unmount()
 })
 
-test('la bolsa avisa una vez por ventana si el ritmo no alcanza, y el botín se copia', async ($, on) => {
+test('la celda avisa una vez por ventana si el ritmo no alcanza, y la descarga se copia', async ($, on) => {
   const clock = mock.clock(on, { now: T0 })
   mock.store(on)
   const toasts: string[] = []
@@ -681,27 +681,27 @@ test('la bolsa avisa una vez por ventana si el ritmo no alcanza, y el botín se 
   await clock.advance(5 * 60_000)
   await $.session.measure(measure(70, 22))
   expect(toasts).toHaveLength(1)
-  expect(toasts[0]).toMatch(/^🪙 A este ritmo la bolsa de la jornada se acaba en/)
+  expect(toasts[0]).toMatch(/^🔋 A este ritmo la celda de la jornada se acaba en/)
 
   await $.agent.spawn(SPAWN)
   await $.turn.complete({ answer: 'Está en src/theme.ts', durationMs: 900, isAborted: false, turnId: 't1', agentId: 'p1', reason: 'answer', usage: HAIKU_USAGE })
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
   await ui.press({ key: 'sel-p1' })
   await ui.press({ key: 'copiar' })
   expect(copied).toBe('Está en src/theme.ts')
-  expect(toasts.at(-1)).toBe('📋 Copiaste el botín de Pícaro 1')
+  expect(toasts.at(-1)).toBe('📋 Copiaste la descarga de Centinela 1')
   await ui.unmount()
 })
 
-test('los apodos salen de la misión, sin modelo', () => {
+test('los apodos salen de la conexión, sin modelo', () => {
   expect(epithet('picaro', 'buscar el logo', 'Encuentra dónde se define')).toBe('el Rastreador')
   expect(epithet('bardo', 'arreglar el login', 'Corrige el error')).toBe('el Sanador')
-  expect(epithet('mago', 'diseñar la arquitectura', 'Diseña el sistema')).toBe('el Arquitecto')
+  expect(epithet('mago', 'diseñar la arquitectura', 'Diseña el sistema')).toBe('el Diseñador')
   expect(epithet('bardo', 'resumir el documento', 'Resume en cinco puntos')).toBe('el Cronista')
   expect(epithet('picaro', 'tarea', 'hazlo')).toBe('el Sigiloso')
 })
 
-test('el libro cuenta la cuota una vez aunque la lean varias sesiones', () => {
+test('el archivo cuenta la cuota una vez aunque la lean varias sesiones', () => {
   const r = (percent: number) => ({ percent, resetsAt: '2026-10-19T07:30:00.000Z' })
   // Libro viejo: lo contado antes queda como base.
   const old = { missions: 0, good: 0, bad: 0, cost: 0, saved: 0, masterCost: 0, codeCost: 0, byClass: {}, fivePoints: 17, weekPoints: 5 }
@@ -720,21 +720,21 @@ test('el libro cuenta la cuota una vez aunque la lean varias sesiones', () => {
   expect(b.fivePoints).toBe(44)
 })
 
-test('cuando el Código sube de clase por la experiencia, la crónica lo cuenta', async ($, on) => {
+test('cuando el Código sube de clase por la experiencia, el registro lo cuenta', async ($, on) => {
   mock.clock(on, { now: 1_000_000 })
   mock.store(on, { experiencia: { 'identificar|picaro': [{ id: 'x1', ok: false }, { id: 'x2', ok: true }] } })
   on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: 'f9' }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
   await $.agent.spawn(SPAWN)
   await $.turn.complete({ answer: '', durationMs: 900, isAborted: false, turnId: 't1', agentId: 'f9', reason: 'error' as never, usage: HAIKU_USAGE })
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
   await ui.press({ key: 'cronica' })
-  expect(await ui.find({ type: 'Text', text: /🛑 Los Pícaros fallaron 2 de sus últimas 3 misiones de identificar o buscar: la próxima va con un Bardo/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /🩹 Pícaro 1 volvió herido/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /🛑 Los Centinelas fallaron 2 de sus últimas 3 conexiones de identificar o buscar: la próxima va con un Agente/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /🩹 Centinela 1 se desconectó herido/ })).toBeDefined()
   await ui.unmount()
 })
 
-test('un aventurero sin acciones hace 5 min se ve quieto; la crónica abre su ficha; la taberna se abre entera', async ($, on) => {
+test('un programa sin acciones hace 5 min se ve quieto; el registro abre su ficha; el Constructo se abre entero', async ($, on) => {
   const clock = mock.clock(on, { now: T0 })
   mock.store(on)
   let n = 0
@@ -748,7 +748,7 @@ test('un aventurero sin acciones hace 5 min se ve quieto; la crónica abre su fi
   await $.agent.spawn(SPAWN)
   await $.tool.call({ tool: 'Bash', command: 'ls', description: 'mirando', agentId: 'q1' } as never)
   await clock.advance(6 * 60_000)
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
   expect(await ui.find({ type: 'Text', text: /^💤 quieto hace 6 min$/ })).toBeDefined()
   // La línea de la crónica de un aventurero abre su ficha.
   const line = (await ui.findAll({ type: 'Button' })).find(b => String(b.key ?? '').startsWith('cronica-'))
@@ -762,7 +762,7 @@ test('un aventurero sin acciones hace 5 min se ve quieto; la crónica abre su fi
   for (let i = 2; i <= 13; i++)
     await $.turn.complete({ answer: 'listo', durationMs: 900, isAborted: false, turnId: `t${i}`, agentId: `q${i}`, reason: 'answer', usage: HAIKU_USAGE })
   await clock.advance(6500)
-  const ui2 = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
+  const ui2 = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
   expect((await ui2.find({ key: 'taberna-mas' }))?.text).toMatch(/^▸ \+\d+ más$/)
   const inTavern = async () => (await ui2.findAll({ type: 'Raster' })).filter(r => String(r.key ?? '').startsWith('t-')).length
   expect(await inTavern()).toBe(6)
@@ -771,7 +771,7 @@ test('un aventurero sin acciones hace 5 min se ve quieto; la crónica abre su fi
   await ui2.unmount()
 })
 
-test('si el motor ya no tiene la conversación de un aventurero, no se ofrece abrirla', async ($, on) => {
+test('si el motor ya no tiene la conversación de un programa, no se ofrece abrirla', async ($, on) => {
   mock.clock(on, { now: 1_000_000 })
   mock.store(on)
   on('agent.spawn', () => ({ model: 'claude-opus-5-5', agentId: 'viejo' }))
@@ -779,14 +779,14 @@ test('si el motor ya no tiene la conversación de un aventurero, no se ofrece ab
   on('turn.complete', (_, e) => ({ text: e.answer }))
   await $.agent.spawn(SPAWN)
   await $.turn.complete({ answer: 'listo', durationMs: 900, isAborted: false, turnId: 't1', agentId: 'viejo', reason: 'answer', usage: OPUS_USAGE })
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
   await ui.press({ key: 'sel-viejo' })
   expect(await ui.find({ key: 'cerrar' })).toBeDefined()
   expect(await ui.find({ key: 'ver' })).toBeUndefined()
   await ui.unmount()
 })
 
-test('el plantel del día: sale el mismo aventurero si está libre; en la taberna, desteñido y una vez', async ($, on) => {
+test('el plantel del día: sale el mismo programa si está libre; en el Constructo, desteñido y una vez', async ($, on) => {
   const clock = mock.clock(on, { now: T0 })
   mock.store(on)
   let n = 0
@@ -802,22 +802,22 @@ test('el plantel del día: sale el mismo aventurero si está libre; en la tabern
   await done('pl1')
   await $.agent.spawn({ ...SPAWN, tool_use_id: 'tu2', description: 'arreglar el login' })
   await $.agent.spawn({ ...SPAWN, tool_use_id: 'tu3' })
-  let ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
+  let ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
   // Pícaro 1 vuelve a salir (con su apodo de la primera vez); como está ocupado, el siguiente es Pícaro 2.
-  expect((await ui.find({ key: 'sel-pl2' }))?.text).toContain('Pícaro 1')
-  expect((await ui.find({ key: 'sel-pl3' }))?.text).toContain('Pícaro 2')
+  expect((await ui.find({ key: 'sel-pl2' }))?.text).toContain('Centinela 1')
+  expect((await ui.find({ key: 'sel-pl3' }))?.text).toContain('Centinela 2')
   expect(await ui.find({ type: 'Raster', key: 't-pl1' })).toBeUndefined()
   await ui.unmount()
   await done('pl2')
   await done('pl3')
   await clock.advance(6500)
-  ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
+  ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
   const tavern = (await ui.findAll({ type: 'Raster' })).filter(r => String(r.key ?? '').startsWith('t-'))
   expect(tavern.map(r => r.key).sort()).toEqual(['t-pl2', 't-pl3'])
   expect((tavern[0]?.props as { cells?: string }).cells).toBe(spriteCells('picaro', 'quieto', 0, 'mini', true))
   await ui.press({ key: 'sel-pl2' })
-  expect(await ui.find({ type: 'Text', text: /^Hoy: 2 misiones · 2 con botín$/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /Pícaro 1, el Rastreador/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^Hoy: 2 conexiones · 2 con descarga$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Centinela 1, el Rastreador/ })).toBeDefined()
   await ui.unmount()
 })
 
@@ -836,15 +836,15 @@ test('a medianoche todos se van a casa y la numeración vuelve a 1', async ($, o
   await $.turn.complete({ answer: 'listo', durationMs: 900, isAborted: false, turnId: 't2', agentId: 'md2', reason: 'answer', usage: HAIKU_USAGE })
   await clock.advance(24 * 3_600_000)
   await $.agent.spawn({ ...SPAWN, tool_use_id: 'tu3' })
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
-  expect(await ui.find({ type: 'Text', text: /🌙 Fin de la jornada: 2 misiones, 2 con botín\. Todos se fueron a casa\./ })).toBeDefined()
-  expect((await ui.find({ key: 'sel-md3' }))?.text).toContain('Pícaro 1')
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
+  expect(await ui.find({ type: 'Text', text: /🌙 Fin de la jornada: 2 conexiones, 2 con descarga\. Todos se fueron a casa\./ })).toBeDefined()
+  expect((await ui.find({ key: 'sel-md3' }))?.text).toContain('Centinela 1')
   expect(await ui.find({ type: 'Raster', key: 't-md1' })).toBeUndefined()
   expect(await ui.find({ type: 'Raster', key: 't-md2' })).toBeUndefined()
   await ui.unmount()
 })
 
-/** Lo mínimo para arrancar una sesión de gremio en una prueba. */
+/** Lo mínimo para arrancar una sesión con el Operador en una prueba. */
 /** Claude Code con su ajuste de idioma (Language) en `value`. */
 function claudeIn(on: On, value: string) {
   on('config.list', () => ({ value: [{ key: 'language', label: 'Language', kind: 'text', value, provider: { plugin: 'engine', tier: 'core' }, isLocked: false }] }) as never)
@@ -860,7 +860,7 @@ function startMocks(on: On, id: string) {
   on('session.measure', (_, e) => ({ changed: e.changed }))
 }
 
-test('el reino: las otras sesiones aparecen con su estado y la que pregunta va a la línea de estado', async ($, on) => {
+test('la Red: las otras sesiones aparecen con su estado y la que pregunta va a la línea de estado', async ($, on) => {
   mock.clock(on, { now: T0 })
   mock.env(on, { HOME: '/Users/ana' })
   mock.store(on, {
@@ -876,18 +876,18 @@ test('el reino: las otras sesiones aparecen con su estado y la que pregunta va a
   startMocks(on, 'propia')
   await $.session.start({ cwd: '/Users/ana/Code/gremio', surface: 'terminal', isInteractive: true } as never)
   expect(shown.at(-1)).toBe('♥ 68 · ❓ huerto')
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
   // La que pregunta primero; la que no late hace 10 min no aparece.
-  expect((await ui.find({ key: 'reino' }))?.text).toBe('🏰 Reino ▸ huerto ❓ 2 min · faro ⏳')
+  expect((await ui.find({ key: 'reino' }))?.text).toBe('🌐 Red ▸ Osiris ❓ 2 min · Ícaro ⏳')
   // Arriba de todo, el aviso de la que te pregunta.
-  expect(await ui.find({ type: 'Text', text: /^❓ huerto te pide permiso: Bash · 2 min · 🚪 ir$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^❓ Osiris te pide permiso: Bash · 2 min · 🚪 ir$/ })).toBeDefined()
   await ui.press({ key: 'reino' })
   // Abierto: una fila por sesión, la propia marcada con ●, las que te necesitan primero.
   const rows = (await ui.findAll({ type: 'Button' })).filter(b => String(b.key ?? '').startsWith('reino-')).map(b => b.text)
   expect(rows).toHaveLength(3)
-  expect(rows[0]).toMatch(/^  ❓ huerto\s+2 min  ♥ 70   🪙 8$/)
-  expect(rows[1]).toMatch(/^  💤 ● gremio\s+ahora  ♥ 68/)
-  expect(rows[2]).toMatch(/^  ⏳ faro\s+1 min  ♥ 50\s+🧭 2$/)
+  expect(rows[0]).toMatch(/^  ❓ Osiris\s+2 min  ♥ 70   🔋 8$/)
+  expect(rows[1]).toMatch(/^  💤 ● Vigilante\s+ahora  ♥ 68/)
+  expect(rows[2]).toMatch(/^  ⏳ Ícaro\s+1 min  ♥ 50\s+🔌 2$/)
   // Al tocar una fila: qué te pide y su carpeta.
   await ui.press({ key: 'reino-otra' })
   expect(await ui.find({ type: 'Text', text: /^      te pide permiso: Bash$/ })).toBeDefined()
@@ -895,7 +895,7 @@ test('el reino: las otras sesiones aparecen con su estado y la que pregunta va a
   await ui.unmount()
 })
 
-test('al empezar un turno, Clawd sabe a quién puede retomar con su memoria', async ($, on) => {
+test('al empezar un turno, el Arquitecto sabe a quién puede retomar con su memoria', async ($, on) => {
   const clock = mock.clock(on, { now: T0 })
   mock.store(on)
   on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: 'mem1' }))
@@ -911,8 +911,8 @@ test('al empezar un turno, Clawd sabe a quién puede retomar con su memoria', as
   await $.turn.complete({ answer: 'Está en src/theme.ts', durationMs: 900, isAborted: false, turnId: 't1', agentId: 'mem1', reason: 'answer', usage: HAIKU_USAGE })
   await clock.advance(3 * 60_000)
   await $.prompt.submit({ text: 'Ahora cambia el color del logo', origin: { kind: 'composer' } } as never)
-  expect(context.at(-1)).toContain('[Gremio] Aventureros en la taberna que puedes retomar con su memoria')
-  expect(context.at(-1)).toContain('- Pícaro 1, el Rastreador (haiku · id mem1): «buscar el logo», volvió hace 3 min')
+  expect(context.at(-1)).toContain('[Operador] Programas en el Constructo que puedes retomar con su memoria')
+  expect(context.at(-1)).toContain('- Centinela 1, el Rastreador (haiku · id mem1): «buscar el logo», se desconectó hace 3 min')
   // El mismo aviso no se repite en el turno siguiente (ya quedó en la conversación).
   await clock.advance(60_000)
   await $.prompt.submit({ text: 'Y el tamaño', origin: { kind: 'composer' } } as never)
@@ -923,7 +923,7 @@ test('al empezar un turno, Clawd sabe a quién puede retomar con su memoria', as
   expect(context).toEqual([])
 })
 
-test('el reino se nombra con los primeros pedidos reales de la conversación', () => {
+test('la Red se nombra con los primeros pedidos reales de la conversación', () => {
   const lines = [
     { type: 'user', isMeta: true, message: { content: 'aviso' } },
     { type: 'user', message: { content: [{ type: 'text', text: '<local-command-caveat>…</local-command-caveat>' }] } },
@@ -937,11 +937,11 @@ test('el reino se nombra con los primeros pedidos reales de la conversación', (
   expect(firstUserTexts(lines.join('\n'))).toEqual(['ahora, elimina clawdito', 'Trabajemos sobre Gremio?', 'Lo primero, el tesoro'])
 })
 
-test('/gremio nombre le pone nombre a la sesión en el reino', async ($, on) => {
+test('/operador nombre le pone nombre a la sesión en la Red', async ($, on) => {
   mock.clock(on, { now: T0 })
   mock.store(on)
-  const r = await $.command.run({ command: 'gremio', args: 'nombre X-Ray', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } })
-  expect('text' in r ? String(r.text) : '').toBe('En el reino, esta sesión se llama «X-Ray».')
+  const r = await $.command.run({ command: 'operador', args: 'nombre X-Ray', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } })
+  expect('text' in r ? String(r.text) : '').toBe('En la Red, esta sesión se llama «X-Ray».')
 })
 
 test('la jornada se reparte entre sesiones según lo que gastó cada una', () => {
@@ -957,7 +957,7 @@ test('la jornada se reparte entre sesiones según lo que gastó cada una', () =>
   expect(coinsOf({ key: 'a', cost: 1, windowKey: 'w1' }, others, undefined)).toBeNull()
 })
 
-test('«Hoy» cuenta las misiones, el botín y lo sin leer; tocarlo abre el primero sin leer', async ($, on) => {
+test('«Hoy» cuenta las conexiones, la descarga y lo sin leer; tocarlo abre el primero sin leer', async ($, on) => {
   const clock = mock.clock(on, { now: T0 })
   mock.store(on)
   let n = 0
@@ -973,30 +973,33 @@ test('«Hoy» cuenta las misiones, el botín y lo sin leer; tocarlo abre el prim
   await $.turn.complete({ answer: 'uno', durationMs: 900, isAborted: false, turnId: 't1', agentId: 'h1', reason: 'answer', usage: HAIKU_USAGE })
   await clock.advance(1000)
   await $.turn.complete({ answer: 'dos', durationMs: 900, isAborted: false, turnId: 't2', agentId: 'h2', reason: 'answer', usage: HAIKU_USAGE })
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
-  expect((await ui.find({ key: 'hoy' }))?.text).toBe('  Hoy     3 misiones · 2 con botín · 2 sin leer')
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
+  expect((await ui.find({ key: 'hoy' }))?.text).toBe('  Hoy     3 conexiones · 2 con descarga · 2 sin leer')
   await ui.press({ key: 'hoy' })
-  expect(await ui.find({ type: 'Text', text: /^💰 uno$/ })).toBeDefined()
-  expect((await ui.find({ key: 'hoy' }))?.text).toBe('  Hoy     3 misiones · 2 con botín · 1 sin leer')
+  expect(await ui.find({ type: 'Text', text: /^💾 uno$/ })).toBeDefined()
+  expect((await ui.find({ key: 'hoy' }))?.text).toBe('  Hoy     3 conexiones · 2 con descarga · 1 sin leer')
   await ui.unmount()
 })
 
-test('el nombre del reino sale de la raíz de la sesión, no de la carpeta a la que se movió', async ($, on) => {
+test('el nombre en la Red sale de la raíz de la sesión, no de la carpeta a la que se movió', async ($, on) => {
   mock.clock(on, { now: T0 })
   mock.env(on, { HOME: '/Users/ana' })
   mock.store(on, { 'reino.otra': { key: 'otra', label: 'huerto', state: 'idle', since: T0, running: 0, life: null, at: T0 - 1000 } })
   startMocks(on, 'propia')
   on('session.root', () => ({ value: '/Users/ana/Code/faro' }) as never)
   await $.session.start({ cwd: '/Users/ana/.claude/projects/-Users-ana/memory', surface: 'terminal', isInteractive: true } as never)
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
   await ui.press({ key: 'reino' })
   const rows = (await ui.findAll({ type: 'Button' })).filter(b => String(b.key ?? '').startsWith('reino-')).map(b => b.text)
-  expect(rows.some(r => /● faro/.test(r))).toBe(true)
-  expect(rows.some(r => /memory/.test(r))).toBe(false)
+  expect(rows.some(r => /● Vigilante/.test(r))).toBe(true)
+  // En la Red se ve su nave; el nombre real, al tocar la fila.
+  await ui.press({ key: 'reino-propia' })
+  expect(await ui.find({ type: 'Text', text: /^\s+faro$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /memory/ })).toBeUndefined()
   await ui.unmount()
 })
 
-test('la siesta: mientras se resume la conversación Clawd duerme, y despierta con la vida llena', async ($, on) => {
+test('el déjà vu: mientras se resume la conversación el Arquitecto duerme, y despierta con la señal llena', async ($, on) => {
   mock.clock(on, { now: T0 })
   mock.store(on)
   on('session.measure', (_, e) => ({ changed: e.changed }))
@@ -1004,21 +1007,21 @@ test('la siesta: mientras se resume la conversación Clawd duerme, y despierta c
   on('session.compact', () => new Promise(done => (release = () => done({ messages: [{ role: 'user', text: 'Resumen de la conversación', toolUses: [] }], tokensBefore: 734_000, tokensAfter: 80_000 }))) as never)
   await $.session.measure({ ...measure(10, 5), context: { window: 1_000_000, tokens: 734_000, percent: 73 }, changed: ['context'] })
   const napping = $.session.compact({ trigger: 'auto', messages: [{ role: 'user', text: 'hola', toolUses: [] }] } as never)
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
-  // El resumen arranca un instante después: se espera a que Clawd se duerma.
-  const asleep = { type: 'Text' as const, text: /«😴 durmiendo una siesta…»/ }
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
+  // El resumen arranca un instante después: se espera a que el Arquitecto se duerma.
+  const asleep = { type: 'Text' as const, text: /«😴 en un déjà vu…»/ }
   for (let i = 0; i < 50 && !(await ui.find(asleep)); i++) await ui.redraw()
   expect(await ui.find(asleep)).toBeDefined()
   expect((await ui.find({ type: 'Raster', key: 'maestro' }))?.props).toMatchObject({ cells: spriteCells('maestro', 'durmiendo', 0, 'big') })
   release()
   await napping
   await ui.redraw()
-  expect(await ui.find({ type: 'Text', text: /🌅 Clawd despertó de su siesta: la vida pasó de 27 % a 92 %/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /🌅 El Arquitecto despertó de su déjà vu: la señal pasó de 27 % a 92 %/ })).toBeDefined()
   expect((await ui.find({ key: 'vida' }))?.text).toMatch(/ 92$/)
   await ui.unmount()
 })
 
-test('ir a la sesión: el reino le pide a Terminal la pestaña de esa sesión', async ($, on) => {
+test('ir a la sesión: la Red le pide a Terminal la pestaña de esa sesión', async ($, on) => {
   mock.clock(on, { now: T0 })
   mock.env(on, { HOME: '/Users/ana' })
   mock.store(on, {
@@ -1031,9 +1034,9 @@ test('ir a la sesión: el reino le pide a Terminal la pestaña de esa sesión', 
   })
   startMocks(on, 'propia')
   await $.session.start({ cwd: '/Users/ana/Code/gremio', surface: 'terminal', isInteractive: true } as never)
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
   // El aviso de arriba lleva a la sesión que pregunta.
-  expect((await ui.find({ key: 'ir-pide-otra' }))?.text).toBe('❓ Recetario te hace una pregunta · 1 min · 🚪 ir')
+  expect((await ui.find({ key: 'ir-pide-otra' }))?.text).toBe('❓ Osiris te hace una pregunta · 1 min · 🚪 ir')
   await ui.press({ key: 'ir-pide-otra' })
   const osa = runs.find(r => r[0] === 'osascript')
   expect(osa?.[2]).toContain('if ({"/dev/ttys001", "/dev/ttys004"} contains (tty of t)) or ((custom title of t) ends with "Recetario") then')
@@ -1044,7 +1047,7 @@ test('ir a la sesión: el reino le pide a Terminal la pestaña de esa sesión', 
   await ui.unmount()
 })
 
-test('el bocadillo: la primera frase del botín, sin Markdown y corta', async ($, on) => {
+test('el bocadillo: la primera frase de la descarga, sin Markdown y corta', async ($, on) => {
   expect(firstSentence('## Resultado\n\nEl logo está en **src/theme.ts**, línea 12. Además…')).toBe('El logo está en src/theme.ts, línea 12.')
   expect(firstSentence('Encontré tres archivos que definen colores y ninguno es el del logo principal')).toBe('Encontré tres archivos que definen colo…')
   mock.clock(on, { now: T0 })
@@ -1053,12 +1056,12 @@ test('el bocadillo: la primera frase del botín, sin Markdown y corta', async ($
   on('turn.complete', (_, e) => ({ text: e.answer }))
   await $.agent.spawn(SPAWN)
   await $.turn.complete({ answer: 'Está en src/theme.ts. Lo demás no importa.', durationMs: 900, isAborted: false, turnId: 't1', agentId: 'bo1', reason: 'answer', usage: HAIKU_USAGE })
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
   expect(await ui.find({ type: 'Text', text: /^💬 Está en src\/theme\.ts\.$/ })).toBeDefined()
   await ui.unmount()
 })
 
-test('el pergamino: el botín completo, con formato, en un panel aparte', async ($, on) => {
+test('la descarga completa, con formato, en un panel aparte', async ($, on) => {
   mock.clock(on, { now: T0 })
   mock.store(on)
   on('agent.spawn', () => ({ model: 'claude-sonnet-5-5', agentId: 'pg1' }))
@@ -1072,19 +1075,19 @@ test('el pergamino: el botín completo, con formato, en un panel aparte', async 
   const long = `## Hallazgos\n\n${'Una línea larga del informe. '.repeat(40)}\n\n- uno\n- dos`
   await $.agent.spawn({ ...SPAWN, model: 'sonnet' })
   await $.turn.complete({ answer: long, durationMs: 900, isAborted: false, turnId: 't1', agentId: 'pg1', reason: 'answer', usage: HAIKU_USAGE })
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
   await ui.press({ key: 'sel-pg1' })
   await ui.press({ key: 'pergamino' })
-  expect(opened).toBe('guild-scroll|📜 Botín de Bardo 1')
+  expect(opened).toBe('operator-scroll|📜 Descarga de Agente 1')
   await ui.unmount()
-  const scroll = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE, requestId: 'guild-scroll' })
+  const scroll = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE, requestId: 'operator-scroll' })
   const md = await scroll.find({ type: 'Markdown' })
   expect((md?.props as { text?: string }).text).toBe(long)
   expect(await scroll.find({ key: 'pergamino-copiar' })).toBeDefined()
   await scroll.unmount()
 })
 
-test('el libro reparte el gasto por proyecto, hoy y en la semana', () => {
+test('el archivo reparte el gasto por proyecto, hoy y en la semana', () => {
   const empty = { missions: 0, good: 0, bad: 0, cost: 0, saved: 0, masterCost: 0, codeCost: 0, byClass: {}, fivePoints: 0, weekPoints: 0 }
   let b = addProjectSpend(empty, '2026-10-19', 'Bitácora', 3)
   b = addProjectSpend(b, '2026-10-19', 'X-Ray', 1)
@@ -1120,7 +1123,7 @@ test('si esta sesión lleva un minuto esperando tu respuesta, avisa por macOS un
   expect(notes()).toHaveLength(0)
   await clock.advance(60_000)
   expect(notes()).toHaveLength(1)
-  expect(notes()[0]?.[2]).toBe('display notification "bitacora te hace una pregunta" with title "Gremio · bitacora"')
+  expect(notes()[0]?.[2]).toBe('display notification "Vigilante te hace una pregunta" with title "Operador · Vigilante"')
   await clock.advance(120_000)
   expect(notes()).toHaveLength(1)
 })
@@ -1140,7 +1143,7 @@ test('lo que suena se ve: la pestaña se marca, macOS avisa y las demás sesione
   const clock = mock.clock(on, { now: T0 })
   mock.env(on, { HOME: '/Users/ana' })
   mock.store(on, {
-    'reino.otra': { key: 'otra', label: 'Recetario', state: 'ready', since: T0 - 5000, running: 0, life: 70, at: T0 - 1000, bell: { at: T0 - 5000, icon: '🔔', text: 'Clawd terminó' } },
+    'reino.otra': { key: 'otra', label: 'Recetario', state: 'ready', since: T0 - 5000, running: 0, life: 70, at: T0 - 1000, bell: { at: T0 - 5000, icon: '☎️', text: 'El Arquitecto terminó' } },
   })
   const runs: string[][] = []
   on('process.run', (_, e) => {
@@ -1153,17 +1156,17 @@ test('lo que suena se ve: la pestaña se marca, macOS avisa y las demás sesione
   startMocks(on, 'propia')
   await $.session.start({ cwd: '/Users/ana', surface: 'terminal', isInteractive: true } as never)
   // Lo que sonó en otra sesión aparece arriba, con dónde y quién.
-  const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
   for (let i = 0; i < 30 && !(await ui.find({ key: 'ir-sono-otra' })); i++) await ui.redraw()
-  expect((await ui.find({ key: 'ir-sono-otra' }))?.text).toBe('🔔 Clawd terminó · Recetario · 5 s · 🚪 ir'.replace('5 s', 'ahora'))
+  expect((await ui.find({ key: 'ir-sono-otra' }))?.text).toBe('☎️ El Arquitecto terminó · Osiris · 5 s · 🚪 ir'.replace('5 s', 'ahora'))
   await ui.unmount()
-  // Cuando Clawd termina un turno largo aquí: marca su pestaña y avisa por macOS.
+  // Cuando el Arquitecto termina un turno largo aquí: marca su pestaña y avisa por macOS.
   await $.turn.start({ turnId: 'm1' } as never)
   await clock.advance(30_000)
   await $.turn.complete({ answer: 'listo', durationMs: 30_000, isAborted: false, turnId: 'm1', reason: 'answer', usage: OPUS_USAGE })
   const osa = runs.filter(r => r[0] === 'osascript').map(r => String(r[2]))
-  expect(osa.some(t => t.includes('if (custom title of t) ends with "Bitácora" then') && t.includes('set custom title of t to "🔔 Bitácora"'))).toBe(true)
-  expect(osa.some(t => t === 'display notification "Clawd terminó" with title "Gremio · Bitácora"')).toBe(true)
+  expect(osa.some(t => t.includes('if (custom title of t) ends with "Bitácora" then') && t.includes('set custom title of t to "☎️ Bitácora"'))).toBe(true)
+  expect(osa.some(t => t === 'display notification "El Arquitecto terminó" with title "Operador · Bitácora"')).toBe(true)
 })
 
 test('el idioma sigue a Claude Code, luego al sistema y si no, inglés', async () => {
@@ -1180,13 +1183,17 @@ test('el idioma sigue a Claude Code, luego al sistema y si no, inglés', async (
   expect(langChoice('klingon')).toBeNull()
 })
 
-test('al cambiar de nombre se trae la historia del almacén viejo, sin los latidos del reino', async () => {
+test('al cambiar de nombre se trae la historia del almacén viejo, sin los latidos de la Red', async () => {
   const chico = { libro: { missions: 2 }, ajustes: { sound: true } }
   const grande = { libro: { missions: 40 }, experiencia: { 'identificar|picaro': [] }, 'reino.x': { key: 'x' }, ajustes: { sound: false } }
   expect(pickImport([chico, grande, null, 'basura'])).toEqual({ libro: { missions: 40 }, experiencia: { 'identificar|picaro': [] }, ajustes: { sound: false } })
   expect(pickImport([])).toEqual({})
+  // A igualdad de historia gana el primero: el de «guild», que ya traía lo de «gremio».
+  expect(pickImport([{ libro: { missions: 5 }, ajustes: { sound: false } }, { libro: { missions: 5 }, ajustes: { sound: true } }])).toEqual({ libro: { missions: 5 }, ajustes: { sound: false } })
   expect(OLD_STORE.test('gremio_inline-0900d49006a7.json')).toBe(true)
-  expect(OLD_STORE.test('guild_inline-1.json')).toBe(false)
+  expect(OLD_STORE.test('guild_inline-d6e7d187229c.json')).toBe(true)
+  expect(OLD_STORE.test('operator_inline-1.json')).toBe(false)
+  expect(OLD_STORE.test('guildmaster_x.json')).toBe(false)
 })
 
 /** Un almacén en memoria que la prueba puede mirar. */
@@ -1224,7 +1231,7 @@ async function startIn($: Engine, on: On, language: string): Promise<string[]> {
 
 const textOf = (r: unknown) => (typeof r === 'object' && r !== null && 'text' in r ? String((r as { text: unknown }).text) : '')
 
-test('en inglés: con Claude Code en English el gremio habla inglés', async ($, on) => {
+test('en inglés: con Claude Code en English el Operador habla inglés', async ($, on) => {
   try {
     mock.clock(on, { now: T0 })
     mock.env(on, { HOME: '/Users/ana' })
@@ -1233,120 +1240,84 @@ test('en inglés: con Claude Code en English el gremio habla inglés', async ($,
     on('prompt.compose', () => ({ sections: [{ id: 'intro', text: 'hi', scope: 'shared' }] }))
     on('ui.status', () => ({ value: undefined }))
     const registered = await startIn($, on, 'English')
-    // Solo «/guild»: «/gremio» se ofrece a quien habla español.
-    expect(registered).toEqual(['guild'])
-    // Una misión en inglés también va a un Pícaro (palabras clave en inglés).
+    // Solo «/operator»: «/operador» se ofrece a quien habla español.
+    expect(registered).toEqual(['operator'])
+    // Una conexión en inglés también va a un Centinela (palabras clave en inglés).
     await $.agent.spawn({ ...SPAWN, description: 'find the logo', prompt: 'Find where the logo is defined and tell me the path.', model: undefined } as never)
-    const ui = await $.ui.mount({ plugin: 'guild', surface: 'terminal', ...PANE })
-    expect((await ui.find({ key: 'sel-e1' }))?.text).toContain('Rogue 1')
-    expect(await ui.find({ type: 'Text', text: /sent Rogue 1, the / })).toBeDefined()
+    const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
+    expect((await ui.find({ key: 'sel-e1' }))?.text).toContain('Sentinel 1')
+    expect(await ui.find({ type: 'Text', text: /jacked in Sentinel 1, the / })).toBeDefined()
     await ui.press({ key: 'sel-e1' })
     await ui.press({ key: 'mas' })
-    expect(await ui.find({ type: 'Text', text: /^Lv\. 5/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^v0\.9 · jacked in by the Architect/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /Effort: low · Permissions: read-only/ })).toBeDefined()
     await ui.unmount()
     // El Código que lee el modelo, también en inglés.
     const p = await $.prompt.compose({ model: 'claude-opus-5-5', promptModel: 'claude-opus-5-5', surfaces: ['terminal'], tools: [], outputStyle: null, traits: [] })
-    expect(p.sections.find(s => s.id === 'guild:code')?.text).toContain('# Guild Code')
-    const r = await $.command.run({ command: 'guild', args: 'accounts', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } })
-    expect(textOf(r)).toContain('**💰 Guild treasury**')
+    expect(p.sections.find(s => s.id === 'operator:code')?.text).toContain('# Matrix Code')
+    const r = await $.command.run({ command: 'operator', args: 'accounts', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } })
+    expect(textOf(r)).toContain('**🔋 Matrix power**')
   } finally {
     setLang('es')
   }
 })
 
-test('/guild language cambia el idioma, lo recuerda y «auto» vuelve a seguir a Claude Code', async ($, on) => {
+test('/operator language cambia el idioma, lo recuerda y «auto» vuelve a seguir a Claude Code', async ($, on) => {
   try {
     mock.clock(on, { now: T0 })
     mock.env(on, { HOME: '/Users/ana' })
     const store = memoryStore(on)
     const registered = await startIn($, on, 'Español')
-    expect(registered).toEqual(['guild', 'gremio'])
-    const run = (args: string) => $.command.run({ command: 'gremio', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } })
-    expect(textOf(await run('language en'))).toBe('The guild now speaks English.')
+    expect(registered).toEqual(['operator', 'operador'])
+    const run = (args: string) => $.command.run({ command: 'operador', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } })
+    expect(textOf(await run('language en'))).toBe('The Operator now speaks English.')
     expect(store.get('ajustes')).toMatchObject({ language: 'en' })
-    expect(textOf(await run('cuentas'))).toContain('**💰 Guild treasury**')
-    expect(textOf(await run('idioma es'))).toBe('El gremio ahora habla español.')
-    expect(textOf(await run('language auto'))).toBe('El gremio vuelve a seguir el idioma de Claude Code.')
+    expect(textOf(await run('cuentas'))).toContain('**🔋 Matrix power**')
+    expect(textOf(await run('idioma es'))).toBe('El Operador ahora habla español.')
+    expect(textOf(await run('language auto'))).toBe('El Operador vuelve a seguir el idioma de Claude Code.')
     expect(store.get('ajustes') as Record<string, unknown>).not.toHaveProperty('language')
-    expect(textOf(await run('idioma klingon'))).toContain('/guild idioma es')
+    expect(textOf(await run('idioma klingon'))).toContain('/operador idioma es')
   } finally {
     setLang('es')
   }
 })
 
-test('la primera vez como guild trae el libro y los ajustes del almacén de gremio, una sola vez', async ($, on) => {
+test('la primera vez como operator trae el archivo y los ajustes del almacén viejo con más historia, una sola vez', async ($, on) => {
   mock.clock(on, { now: T0 })
   mock.env(on, { HOME: '/Users/ana' })
   const store = memoryStore(on)
   const runs: string[][] = []
+  const book = (missions: number) => ({ missions, good: 6, bad: 1, cost: 1, saved: 0, masterCost: 2, codeCost: 0, byClass: {}, fivePoints: 0, weekPoints: 0 })
+  const files: Record<string, unknown> = {
+    '/Users/ana/.claude/plugins/store/guild_inline-1.json': { libro: book(12), ajustes: { sound: false, doctrine: true }, migrado: true, 'reino.x': { key: 'x' } },
+    '/Users/ana/.claude/plugins/store/gremio_inline-1.json': { libro: book(7), ajustes: { sound: true, doctrine: true } },
+  }
   on('process.run', (_, e) => {
     runs.push([...e.argv])
-    const old = { libro: { missions: 7, good: 6, bad: 1, cost: 1, saved: 0, masterCost: 2, codeCost: 0, byClass: {}, fivePoints: 0, weekPoints: 0 }, ajustes: { sound: false, doctrine: true }, 'reino.x': { key: 'x' } }
-    const stdout = e.argv[0] === 'find' ? '/Users/ana/.claude/plugins/store/gremio_inline-1.json\n' : e.argv[0] === 'cat' ? JSON.stringify(old) : ''
+    const pattern = e.argv[0] === 'find' ? String(e.argv.at(-1)) : ''
+    const found = Object.keys(files).filter(f => f.split('/').pop()?.startsWith(pattern.replace('*.json', '')))
+    const stdout = e.argv[0] === 'find' ? found.join('\n') + '\n' : e.argv[0] === 'cat' ? JSON.stringify(files[String(e.argv[1])]) : ''
     return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   startMocks(on, 'propia')
   await $.session.start({ cwd: '/Users/ana/Code/recetario', surface: 'terminal', isInteractive: true } as never)
-  expect(runs.find(r => r[0] === 'find')?.[1]).toBe('/Users/ana/.claude/plugins/store')
-  expect(store.get('libro')).toMatchObject({ missions: 7 })
+  const finds = runs.filter(r => r[0] === 'find')
+  expect(finds.map(r => r[1])).toEqual(['/Users/ana/.claude/plugins/store', '/Users/ana/.claude/plugins/store'])
+  expect(finds.map(r => r.at(-1))).toEqual(['guild_*.json', 'gremio_*.json'])
+  // Se trae el de «guild» (12 conexiones), no el de «gremio» (7).
+  expect(store.get('libro')).toMatchObject({ missions: 12 })
   expect(store.get('ajustes')).toMatchObject({ sound: false })
   expect(store.get('reino.x')).toBeUndefined()
   expect(store.get('migrado')).toBe(true)
   // La segunda sesión ya no busca.
-  const finds = runs.filter(r => r[0] === 'find' && r[1]?.endsWith('/plugins/store')).length
+  const count = runs.filter(r => r[0] === 'find').length
   await $.session.start({ cwd: '/Users/ana/Code/recetario', surface: 'terminal', isInteractive: true } as never)
-  expect(runs.filter(r => r[0] === 'find' && r[1]?.endsWith('/plugins/store')).length).toBe(finds)
+  expect(runs.filter(r => r[0] === 'find').length).toBe(count)
 })
 
-// ── El tema Matrix ──────────────────────────────────────────────────────────
-
-test('el tema Matrix recuenta el gremio en español', () => {
-  const es = (t: string) => recastAs(t, 'es', 'matrix')
-  expect(es('Gremio de Clawd')).toBe('Matrix del Arquitecto')
-  expect(es('🧭 Clawd envió a Pícaro 2, el Rastreador: buscar el logo')).toBe('🔌 El Arquitecto conectó a Centinela 2, el Rastreador: buscar el logo')
-  expect(es('💰 Bardo 1 volvió con el botín')).toBe('💾 Agente 1 se desconectó con la descarga')
-  expect(es('Código del Gremio')).toBe('Código de la Matrix')
-  expect(es('🍺 Taberna')).toBe('⬜ Constructo')
-  expect(es('Clawd quiere enviar a un Archimago (Fable). ¿Lo autorizas?')).toBe('El Arquitecto quiere conectar a Neo (Fable). ¿Píldora roja? (sí = lo autorizas)')
-  expect(es('A Clawd le queda poca vida (12 %)')).toBe('Al Arquitecto le queda poca señal (12 %)')
-  expect(es('🌅 Clawd despertó de su siesta')).toBe('🌅 El Arquitecto despertó de su déjà vu')
-  expect(es('Los Magos fallan: la próxima va con un Archimago')).toBe('Los Oráculos fallan: la próxima va con Neo')
-})
-
-test('el tema Matrix recuenta el gremio en inglés', () => {
-  const en = (t: string) => recastAs(t, 'en', 'matrix')
-  expect(en("Clawd's Guild")).toBe("The Architect's Matrix")
-  expect(en("open Clawd's Guild")).toBe("open the Architect's Matrix")
-  expect(en('🔔 Clawd finished')).toBe('☎️ The Architect finished')
-  expect(en('💰 Rogue 2 came back with the loot')).toBe('💾 Sentinel 2 unplugged with the download')
-  expect(en('Clawd wants to send an Archmage (Fable). Do you approve?')).toBe('The Architect wants to jack in Neo (Fable). Red pill? (yes = approve)')
-  expect(en('the next one goes with a Mage')).toBe('the next one goes with an Oracle')
-  expect(en('🏰 Realm')).toBe('🌐 Network')
-})
-
-test('el tema de siempre deja el texto tal cual y tr() sigue al tema', () => {
-  expect(recastAs('Gremio de Clawd', 'es', 'guild')).toBe('Gremio de Clawd')
-  setLang('es')
-  setTheme('matrix')
-  expect(tr('Gremio abierto.', 'Guild opened.')).toBe('Matrix abierta.')
-  setLang('en')
-  expect(tr('Gremio abierto.', 'Guild opened.')).toBe('Matrix opened.')
-  setTheme('guild')
-  setLang('es')
-  expect(tr('Gremio abierto.', 'Guild opened.')).toBe('Gremio abierto.')
-})
-
-test('/guild tema entiende los dos temas', () => {
-  expect(themeChoice('matrix')).toBe('matrix')
-  expect(themeChoice(' La Matrix ')).toBe('matrix')
-  expect(themeChoice('gremio')).toBe('guild')
-  expect(themeChoice('guild')).toBe('guild')
-  expect(themeChoice('zion')).toBeNull()
-})
+// ── La Matrix ───────────────────────────────────────────────────────────────
 
 test('cada celda de cada sprite de la Matrix lleva a lo más dos colores', () => {
-  setTheme('matrix')
   const bad: string[] = []
   for (const cls of ['maestro', 'archimago', 'mago', 'bardo', 'picaro'] as const)
     for (const pose of ['quieto', 'marcha', 'parpadeo', 'caido', 'cansado', 'durmiendo'] as const)
@@ -1360,7 +1331,6 @@ test('cada celda de cada sprite de la Matrix lleva a lo más dos colores', () =>
               if (colors.size > 2) bad.push(`${cls} ${pose} ${size} (${x},${y})`)
             }
         }
-  setTheme('guild')
   expect([...new Set(bad)]).toEqual([])
 })
 
@@ -1388,17 +1358,6 @@ test('la Red muestra con quién conversa una sesión', () => {
 test('la lluvia usa solo caracteres de una celda', () => {
   const wide = [...rain(400, 3)].filter(ch => { const c = ch.codePointAt(0) ?? 0; return !(c < 0x7f || (c >= 0xff61 && c <= 0xff9f)) })
   expect(wide).toEqual([])
-})
-
-test('el glosario Matrix respeta bordes, siglas, plurales y nombres de archivo', () => {
-  const es = (t: string) => recastAs(t, 'es', 'matrix')
-  const en = (t: string) => recastAs(t, 'en', 'matrix')
-  expect(es('para Clawd')).toBe('para el Arquitecto')
-  expect(es('desde Clawd')).toBe('desde el Arquitecto')
-  expect(es('Los Pícaros están en misión')).toBe('Los Centinelas están conectados')
-  expect(es('📖 lee libro.md y hooks/libro.ts')).toBe('🧾 lee libro.md y hooks/libro.ts')
-  expect(en('PHP and HPC and HP')).toBe('PHP and HPC and signal')
-  expect(en('ran "send" in v0.9')).toBe('ran "jack in" in v0.9')
 })
 
 test('la ventana que manda es la de 5 h si existe, y si no la semana', () => {
@@ -1429,10 +1388,10 @@ test('Ghostty: el guion de pestaña y la orden de título', () => {
   expect(ghosttyFocusScript('Recetario')).toContain('contains "Recetario"')
   expect(isGhostty('ghostty')).toBe(true)
   expect(isGhostty('Apple_Terminal')).toBe(false)
-  const cmd = titleCommand('ttys004', '🔔 Recetario')
+  const cmd = titleCommand('ttys004', '☎️ Recetario')
   expect(cmd[0]).toBe('sh')
   expect(cmd.at(-1)).toBe('ttys004')
-  expect(cmd.at(-2)).toBe('🔔 Recetario')
+  expect(cmd.at(-2)).toBe('☎️ Recetario')
 })
 
 test('las naves de Zion: estables por sesión, sin repetirse entre las vivas', () => {
@@ -1447,26 +1406,19 @@ test('las naves de Zion: estables por sesión, sin repetirse entre las vivas', (
   expect(shipFor('sesion-a', [...SHIPS, `${a} 2`])).toBe(`${a} 3`)
 })
 
-test('en la Matrix la Red nombra las sesiones por su nave; en el gremio, por su nombre', () => {
+test('la Red nombra las sesiones por su nave; el nombre real va en el detalle', () => {
   const now = 1_000_000
   const e = { key: 'a', label: 'Recetario', ship: 'Logos', state: 'working', since: now, running: 0, life: 50, at: now } as GremioRealmEntry
-  expect(nameOf(e)).toBe('Recetario')
-  expect(realmDetail(e, null, now)).not.toContain('Recetario')
-  setTheme('matrix')
-  try {
-    expect(nameOf(e)).toBe('Logos')
-    expect(realmSummary(e, now)).toBe('Logos ⏳')
-    expect(realmRow(e, now, false)).toContain('Logos')
-    expect(realmDetail(e, null, now)).toContain('Recetario')
-    // Una sesión vieja sin nave anotada recibe la que le toca por su id.
-    expect(SHIPS).toContain(nameOf({ key: 'x', label: 'Faro' }))
-  } finally {
-    setTheme('guild')
-  }
+  expect(nameOf(e)).toBe('Logos')
+  expect(realmSummary(e, now)).toBe('Logos ⏳')
+  expect(realmRow(e, now, false)).toContain('Logos')
+  expect(realmDetail(e, null, now)).toContain('Recetario')
+  // Una sesión vieja sin nave anotada recibe la que le toca por su id.
+  expect(SHIPS).toContain(nameOf({ key: 'x' }))
 })
 
 test('la Red muestra la acción en curso de una sesión que trabaja', () => {
   const now = 1_000_000
-  const e = { key: 'a', label: 'Recetario', state: 'working', since: now, running: 0, life: 50, at: now, doing: 'escribiendo armar.py' } as GremioRealmEntry
-  expect(realmSummary(e, now)).toBe('Recetario ⏳ escribiendo armar.py')
+  const e = { key: 'a', label: 'Recetario', ship: 'Logos', state: 'working', since: now, running: 0, life: 50, at: now, doing: 'escribiendo armar.py' } as GremioRealmEntry
+  expect(realmSummary(e, now)).toBe('Logos ⏳ escribiendo armar.py')
 })

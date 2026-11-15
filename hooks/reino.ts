@@ -5,7 +5,6 @@
 import type { GremioRealmEntry, GremioRealmState } from '../types'
 import { tr } from './i18n'
 import { shipFor } from './naves'
-import { theme } from './tema'
 
 /** Un latido más viejo que esto ya no cuenta (la sesión se cerró o se colgó). */
 export const REALM_FRESH_MS = 3 * 60_000
@@ -44,9 +43,9 @@ function minutes(ms: number): string {
 /** «te pide algo · hace 2 min», «trabajando · 2 en misión», «terminó hace 12 min», «tranquila». */
 export function realmWord(e: GremioRealmEntry, now: number): string {
   if (e.state === 'asking') return tr(`te pide algo · ${minutes(now - e.since)}`, `needs you · ${minutes(now - e.since)}`)
-  if (e.state === 'napping') return tr(`durmiendo la siesta · ${minutes(now - e.since)}`, `taking a nap · ${minutes(now - e.since)}`)
+  if (e.state === 'napping') return tr(`en un déjà vu · ${minutes(now - e.since)}`, `in a déjà vu · ${minutes(now - e.since)}`)
   if (e.state === 'working') return e.running > 0
-      ? tr(`trabajando · ${e.running} en misión`, `working · ${e.running} on quests`)
+      ? tr(`trabajando · ${e.running} ${e.running === 1 ? 'conectado' : 'conectados'}`, `working · ${e.running} jacked in`)
       : tr('trabajando', 'working')
   if (e.state === 'ready') return tr(`terminó ${minutes(now - e.since)}`, `finished ${minutes(now - e.since)}`)
   return tr('tranquila', 'quiet')
@@ -143,9 +142,9 @@ export function shortSince(ms: number): string {
   return `${Math.floor(m / 60)} h`
 }
 
-/** Cómo se llama una sesión en el panel: en la Matrix, su nave de Zion; si no, su nombre. */
-export function nameOf(e: Pick<GremioRealmEntry, 'key' | 'label' | 'ship'>): string {
-  return theme() === 'matrix' ? e.ship || shipFor(e.key) : e.label
+/** Cómo se llama una sesión en el panel: su nave de Zion. */
+export function nameOf(e: Pick<GremioRealmEntry, 'key' | 'ship'>): string {
+  return e.ship || shipFor(e.key)
 }
 
 /** Una fila del reino abierto: estado, nombre, hace cuánto, vida, parte de la jornada y lo pendiente. */
@@ -155,8 +154,8 @@ export function realmRow(e: GremioRealmEntry, now: number, isOwn: boolean): stri
     `${REALM_ICON[e.state]} ${name}`,
     shortSince(now - e.since).padStart(6),
     e.life !== null ? `♥ ${Math.round(e.life)}`.padEnd(5) : '     ',
-    typeof e.coins === 'number' ? tr(`🪙 ${Math.round(e.coins)}`, `🪙 ${Math.round(e.coins)}`).padEnd(5) : '     ',
-    e.running > 0 ? tr(`🧭 ${e.running}`, `🧭 ${e.running}`) : (e.unread ?? 0) > 0 ? tr(`💰 ${e.unread}`, `💰 ${e.unread}`) : '',
+    typeof e.coins === 'number' ? tr(`🔋 ${Math.round(e.coins)}`, `🔋 ${Math.round(e.coins)}`).padEnd(5) : '     ',
+    e.running > 0 ? tr(`🔌 ${e.running}`, `🔌 ${e.running}`) : (e.unread ?? 0) > 0 ? tr(`💾 ${e.unread}`, `💾 ${e.unread}`) : '',
     talkingTo(e, now).length > 0 ? `💬→${talkingTo(e, now).join(',')}` : '',
   ]
   return parts.join('  ').trimEnd()
