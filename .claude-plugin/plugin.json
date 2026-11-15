@@ -1,6 +1,6 @@
 {
   "name": "operator",
-  "version": "0.28.0",
+  "version": "0.29.0",
   "description": "The Operator: watch the Matrix from the screens. The main session is the Architect and every agent is a program (Sentinel, Agent, the Oracle, Neo) in a live pixel-art panel with digital rain, sounds, ships of Zion for your other sessions, and a Matrix Code that picks each agent's model and effort. Speaks English and Spanish.",
   "types": "./types/index.d.ts"
 }

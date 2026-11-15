@@ -9,6 +9,16 @@ export type GremioEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 /** El tipo de misión, que decide la clase de partida. */
 export type GremioTask = 'identificar' | 'investigar' | 'disenar'
 
+/** La clase de herramienta que usó un programa, para deducir su fase (ver hooks/fase.ts). */
+export type GremioKind = 'read' | 'write' | 'test' | 'run' | 'mcp' | 'delegate' | 'other'
+/** Lo que se anota al usar herramientas: clases recientes, archivos leídos, búsquedas y archivos editados. */
+export type GremioTrack = {
+  kinds?: GremioKind[]
+  reads?: string[]
+  searches?: Array<{ q: string; at: number }>
+  edits?: Array<{ path: string; at: number }>
+}
+
 /** Tokens de un uso, como los cobra la API. */
 export type GremioUsage = { input: number; output: number; cacheRead: number; cacheWrite: number }
 
@@ -62,8 +72,8 @@ export type GremioTreasury = {
   saved: number
 }
 
-/** Un agente de la sesión, visto como aventurero. */
-export type GremioHero = {
+/** Un agente de la sesión, visto como programa. */
+export type GremioHero = GremioTrack & {
   id: string
   /** El aventurero que lo envió; null cuando lo envió el Maestro. */
   parentId: string | null
@@ -122,12 +132,14 @@ export type GremioHero = {
   lastActionAt?: number
   /** Cuándo abriste su ficha después de que volvió (si no, su botín está «sin leer»). */
   seenAt?: number | null
+  /** El id de la corrida de Workflow que lo conectó, si fue un Workflow. */
+  workflow?: string
 }
 
 /** El contexto de la sesión: la vida del Maestro. */
 export type GremioContext = { percent: number | null; tokens: number | null; window: number }
 /** La sesión principal, vista como el Maestro del Gremio. */
-export type GremioMaster = {
+export type GremioMaster = GremioTrack & {
   doing: string
   isBusy: boolean
   model: string
@@ -187,7 +199,13 @@ export type GremioRealmEntry = {
   /** La sesión se cerró: ya no se muestra, pero su gasto cuenta hasta que pase la ventana. */
   closed?: boolean
   /** Otras sesiones a las que les escribió hace poco (SendMessage), por su nombre. */
-  talking?: Array<{ to: string; at: number }>
+  talking?: GremioTalk[]
+  /** Su tripulación en curso (hasta 8), para dibujarla en el mapa. */
+  crew?: GremioCrewMember[]
+  /** Los archivos que editó (ella y sus programas) en los últimos 10 minutos, con ruta completa (hasta 12). */
+  edits?: Array<{ path: string; at: number }>
+  /** La fase del Arquitecto de esa sesión (ver hooks/fase.ts). */
+  phase?: string | null
   /** Lo que está haciendo ahora mismo (si trabaja): «escribiendo armar.py». */
   doing?: string | null
   /** La terminal que la corre (TERM_PROGRAM): Apple_Terminal, ghostty, iTerm.app… */
@@ -197,6 +215,23 @@ export type GremioRealmEntry = {
   /** No guarda la conversación (heredó la marca de sesión hija). */
   unsaved?: boolean
 }
+/** Un programa de otra sesión, tal como viaja en su latido (para dibujar el mapa de la Red). */
+export type GremioCrewMember = {
+  id: string
+  name: string
+  cls: GremioClass
+  /** Su fase (ver hooks/fase.ts), o null si todavía no hizo nada. */
+  phase: string | null
+  /** Para qué lo conectaron, cortado. */
+  goal: string
+  /** El programa que lo conectó, si no fue el Arquitecto. */
+  parent: string | null
+  /** El Workflow que lo conectó, si fue uno. */
+  wf?: string
+}
+/** Un mensaje (o varios) de una sesión a otra: a quién, cuándo el último, cuántos y de qué trataba el último. */
+export type GremioTalk = { to: string; at: number; count?: number; subject?: string }
+
 /** Una línea de la crónica; `heroId` si habla de un aventurero (al tocarla se abre su ficha). */
 export type GremioLogEntry = { at: number; text: string; heroId?: string }
 
@@ -241,6 +276,8 @@ declare module 'claude-code' {
       realmOpen: boolean
       /** El aventurero cuyo botín muestra el pergamino. */
       scrollHero: string | null
+      /** La línea de tiempo del turno abierta en el mapa de la Red. */
+      timelineOpen: boolean
       /** La sesión del reino con su detalle abierto (su id), o null. */
       realmPicked: string | null
       /** El nombre corto de esta sesión en el reino. */

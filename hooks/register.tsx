@@ -1,9 +1,9 @@
-// El Gremio de Clawd. Clawd es el Gran Maestre (la sesión principal) y
-// cada agente es un aventurero cuya clase dice qué modelo usa. El Código del
-// Gremio elige modelo y esfuerzo de cada misión, la acota y pide permiso para
-// el Archimago (Fable). Cada clase suena distinto al volver. La tesorería
-// cuenta el oro de cada misión y la experiencia sube de clase las misiones que
-// una clase viene fallando.
+// El Operador. El Arquitecto es la sesión principal y cada agente es un
+// programa de la Matrix cuya clase dice qué modelo usa. El Código de la Matrix
+// elige modelo y esfuerzo de cada conexión, la acota y pide permiso para Neo
+// (Fable). Cada programa suena distinto al desconectarse. La energía cuenta lo
+// que cuesta cada conexión y la experiencia sube de nivel las conexiones que un
+// tipo de programa viene fallando. La Red es el mapa de las otras sesiones.
 
 import { atom, read, update } from 'claude-code'
 import type { AgentSpawnInput, EngineInterface, Register } from 'claude-code'
@@ -18,9 +18,13 @@ import type {
   GremioHero,
   GremioLogEntry,
   GremioMaster,
+  GremioTalk,
   GremioTask,
   GremioTreasury,
 } from '../types'
+import { closingLine, duplicateNote, overlap, PHASE_ICON, phaseOf, phaseWord, record as recordTool, stepWithPhase, stripIcon } from './fase'
+import type { Phase } from './fase'
+import { addTalk, clashesOf, clashText, crewOf, fit, linksOf, mapLines, recentEdits, subjectOf, summaryText, timelineLines } from './mapa'
 import { absorb, chargeBar, coinText, EMPTY_QUOTA, forecast, HIGH_WEEK, isShiftPlan, isWeekHigh, kindLabel, leftColor, pctText, primary, ratePerHour, sessionPrimary, span, whenText } from './cuota'
 import type { Limit } from './cuota'
 import { epithet } from './apodos'
@@ -44,7 +48,6 @@ import {
   REALM_FRESH_MS,
   realmDetail,
   realmRow,
-  realmSummary,
   shortSince,
   stateOf,
   TALK_MS,
@@ -67,6 +70,8 @@ import { OLD_STORE, OLD_STORES, pickImport } from './migrar'
 const PANE = 'operator'
 // El pergamino: el botín completo en un panel aparte.
 const SCROLL = 'operator-scroll'
+// El mapa de la Red, en un panel aparte.
+const NET = 'operator-net'
 const SLOT = 15
 // Con pocos en el campo, salen en grande (18 celdas de ancho más el margen).
 const BIG_SLOT = 20
@@ -172,6 +177,7 @@ const realm = atom({ plugin: 'operator', key: 'realm' } as const, [] as GremioRe
 const realmOpen = atom({ plugin: 'operator', key: 'realmOpen' } as const, false)
 const scrollHero = atom({ plugin: 'operator', key: 'scrollHero' } as const, null as string | null)
 const realmPicked = atom({ plugin: 'operator', key: 'realmPicked' } as const, null as string | null)
+const timelineOpen = atom({ plugin: 'operator', key: 'timelineOpen' } as const, false)
 const label = atom({ plugin: 'operator', key: 'label' } as const, '')
 const ship = atom({ plugin: 'operator', key: 'ship' } as const, '')
 const spend = atom({ plugin: 'operator', key: 'spend' } as const, { key: '', cost: 0 })
@@ -261,7 +267,81 @@ function stopRain(): void {
   rainClock = null
 }
 // Otras sesiones a las que esta les escribió hace poco (para la Red).
-let talking: Array<{ to: string; at: number }> = []
+let talking: GremioTalk[] = []
+// Herramientas del Arquitecto en curso (sin contar Agent: mientras corre un programa, espera).
+let masterInFlight = 0
+// Quién espera tu permiso o tu respuesta ahora: el id del programa, o "main" para el Arquitecto.
+const waitingPermission = new Set<string>()
+// Los pares de programas ya avisados por trabajo duplicado, y los choques ya anotados.
+const warnedDup = new Set<string>()
+const warnedClash = new Set<string>()
+
+/** La fase de un programa ahora: lo que lo detiene (permiso, otro programa, quietud) o sus últimas herramientas. */
+function heroPhase(u: GremioHero, list: readonly GremioHero[], now: number): Phase | null {
+  if (u.status !== 'running') return null
+  const isIdleNow = (inFlight.get(u.id) ?? 0) === 0
+  const hasKids = list.some(k => k.parentId === u.id && k.status === 'running')
+  const since = now - (u.lastActionAt ?? u.roundStartedAt ?? u.startedAt)
+  return phaseOf({ kinds: u.kinds, isAsking: waitingPermission.has(u.id), isWaiting: hasKids && isIdleNow, isQuiet: isIdleNow && !hasKids && since > QUIET_MS })
+}
+
+/** Los programas que conectó el Arquitecto y siguen conectados. */
+function directRunning(list: readonly GremioHero[]): number {
+  return list.filter(u => u.status === 'running' && u.parentId === null).length
+}
+
+/** La fase del Arquitecto: esperando permiso, esperando a sus programas, o lo que hace. null si está en reposo. */
+function masterPhase(dm: GremioMaster, list: readonly GremioHero[]): Phase | null {
+  const waiting = directRunning(list) > 0 && masterInFlight === 0
+  if (!dm.isBusy && !waiting) return null
+  return phaseOf({ kinds: dm.kinds, isAsking: waitingPermission.has('main'), isWaiting: waiting })
+}
+
+/** "esperando a 2 programas". */
+function waitingText(n: number): string {
+  return n === 1 ? tr('esperando a 1 programa', 'waiting for 1 program') : tr(`esperando a ${n} programas`, `waiting for ${n} programs`)
+}
+
+/** Los archivos que editaron el Arquitecto y sus programas en los últimos 10 minutos (para el latido). */
+function sessionEdits(dm: GremioMaster, list: readonly GremioHero[], now: number): Array<{ path: string; at: number }> {
+  return recentEdits([...(dm.edits ?? []), ...list.flatMap(u => u.edits ?? [])], now)
+}
+
+/** Si dos programas en curso revisan lo mismo, una nota en el Registro (una vez por par). */
+async function checkDuplicates($: EngineInterface, id: string): Promise<void> {
+  const list = (await read($, heroes)).filter(u => u.status === 'running')
+  const me = list.find(u => u.id === id)
+  if (!me) return
+  for (const other of list) {
+    if (other.id === id) continue
+    const pair = [id, other.id].sort().join('|')
+    if (warnedDup.has(pair)) continue
+    const what = overlap(me, other)
+    if (!what) continue
+    warnedDup.add(pair)
+    // El que salió primero va primero.
+    const [a, b] = list.indexOf(me) <= list.indexOf(other) ? [me, other] : [other, me]
+    await note($, duplicateNote(a.name, b.name, what), me.id)
+  }
+}
+
+/** Los choques nuevos (dos sesiones vivas editando el mismo archivo) van al Registro, una vez por par y archivo. */
+async function checkClashes($: EngineInterface): Promise<void> {
+  const own = await ownEntry($)
+  if (!own) return
+  const now = await $.clock.now()
+  const live = [own, ...otherSessions(await read($, realm), own.key, now)]
+  const nameFor = (key: string) => {
+    const e = live.find(x => x.key === key)
+    return e ? nameOf(e) : key
+  }
+  for (const c of clashesOf(live, now)) {
+    const id = `${c.a}|${c.b}|${c.file}`
+    if (warnedClash.has(id)) continue
+    warnedClash.add(id)
+    await note($, clashText(c, nameFor))
+  }
+}
 
 function poseFor(state: SpriteState): Pose {
   return state === 'busy' ? 'marcha' : state === 'down' ? 'caido' : state === 'tired' ? 'cansado' : state === 'asleep' ? 'durmiendo' : 'quieto'
@@ -408,6 +488,9 @@ async function ownEntry($: EngineInterface): Promise<GremioRealmEntry | null> {
     bell: lastBell,
     talking: talking.filter(t => now - t.at < TALK_MS),
     doing: dm.isBusy && !isIdle(dm.doing) ? cut(dm.doing, 48) : null,
+    phase: masterPhase(dm, list),
+    crew: crewOf(list, u => heroPhase(u, list, now)),
+    edits: sessionEdits(dm, list, now),
     program: termProgram,
     unsaved: isUnsaved || undefined,
     ship: vessel || undefined,
@@ -420,7 +503,11 @@ async function beat($: EngineInterface, force = false): Promise<void> {
     if (!force && (await $.clock.now()) - lastBeat < 15_000) return
     const own = await ownEntry($)
     if (!own) return
-    const sig = `${own.state}|${own.running}|${own.label}|${own.since}`
+    // Lo que cambia el dibujo de las demás: estado, tripulación, archivos editados y mensajes.
+    const crewSig = (own.crew ?? []).map(m => `${m.id}:${m.phase}`).join(',')
+    const editSig = (own.edits ?? []).map(e => e.path).join(',')
+    const talkSig = (own.talking ?? []).map(t => `${t.to}:${t.count ?? 1}`).join(',')
+    const sig = `${own.state}|${own.running}|${own.label}|${own.since}|${own.phase ?? ''}|${crewSig}|${editSig}|${talkSig}`
     await notifyIfWaiting($, own)
     if (!force && sig === lastBeatSig && own.at - lastBeat < 60_000) return
     lastBeatSig = sig
@@ -490,6 +577,7 @@ async function readRealm($: EngineInterface): Promise<void> {
       await update($, realm, () => next)
       await refreshStatus($)
     }
+    await checkClashes($)
   } catch {
     // Sin almacén, el reino no se ve.
   }
@@ -1004,6 +1092,28 @@ async function openPane($: EngineInterface) {
   return $.ui.open({ id: PANE, title: tr('Matrix del Arquitecto', "The Architect's Matrix") })
 }
 
+/** Abre el mapa de la Red en su propio panel. */
+async function openNet($: EngineInterface) {
+  return $.ui.open({ id: NET, title: tr('La Red', 'The Network') })
+}
+
+/** Las naves vivas para el mapa: la propia primero, después las que te necesitan. */
+async function liveShips($: EngineInterface, now: number): Promise<{ own: GremioRealmEntry | null; live: GremioRealmEntry[] }> {
+  const own = await ownEntry($)
+  const rest = otherSessions(await read($, realm), own?.key ?? sessionKey ?? '', now)
+  return { own, live: own ? [own, ...rest] : rest }
+}
+
+/** El resumen de la Red en una línea: naves, las que te necesitan, enlaces y choques. */
+function netSummary(live: readonly GremioRealmEntry[], ownKey: string | null, now: number): string {
+  return summaryText({
+    ships: live.length,
+    asking: live.filter(r => r.key !== ownKey && r.state === 'asking').length,
+    links: linksOf(live, now, ownKey).length,
+    clashes: clashesOf(live, now).length,
+  })
+}
+
 /** Te pregunta antes de enviar a un Archimago (Fable). */
 async function askFable($: EngineInterface, e: AgentSpawnInput): Promise<'yes' | 'opus' | string> {
   const run = e.workflow?.runId
@@ -1137,6 +1247,14 @@ export const register: Register = on => {
   })
 
   for (const command of ['operator', 'operador'] as const) on('command.run', { command }, async ($, e) => {
+    if (/^\s*(red|net|network|map|mapa)\s*$/i.test(e.args)) {
+      const opened = await openNet($)
+      return {
+        text: opened.isPlaced
+          ? tr('La Red abierta.', 'Network opened.')
+          : tr(`La Red espera lugar en pantalla: ${opened.reason}`, `The Network is waiting for room on screen: ${opened.reason}`),
+      }
+    }
     const rename = /^\s*(?:nombre|name)\s+(.+)$/i.exec(e.args)
     if (rename) {
       const name = rename[1]?.trim().slice(0, 32) ?? ''
@@ -1294,7 +1412,7 @@ export const register: Register = on => {
     try {
       if (e.agentId === undefined) {
         const at = await $.clock.now()
-        await update($, master, m => ({ ...m, isBusy: true, doing: tr('🧠 pensando', '🧠 thinking'), turnStartedAt: at, turnActions: 0 }))
+        await update($, master, m => ({ ...m, isBusy: true, doing: tr('🧠 pensando', '🧠 thinking'), turnStartedAt: at, turnActions: 0, kinds: [] }))
         await beat($, true)
       } else {
         const id = e.agentId
@@ -1389,7 +1507,10 @@ export const register: Register = on => {
           // Se queda unos segundos en el campo con su botín antes de entrar a la taberna.
           returnRedraws.push(frame + Math.ceil((RETURN_MS + 200) / 400))
           await refreshAgents($)
-          await note($, `${icon} ${hero.name} ${verb} · ${duration(at - (hero.roundStartedAt ?? hero.startedAt))}`, hero.id)
+          // El cierre en una línea: qué trajo y qué archivos tocó en esta ronda.
+          const roundStart = hero.roundStartedAt ?? hero.startedAt
+          const closing = status === 'done' ? closingLine(e.answer ?? hero.report, (hero.edits ?? []).filter(x => x.at >= roundStart)) : null
+          await note($, `${icon} ${hero.name} ${verb} · ${duration(at - roundStart)}${closing ? ` · ${closing}` : ''}`, hero.id)
           if (status === 'done') await chime($, hero.cls)
           if (status === 'failed') await chime($, 'caido')
           if (status === 'done') await ring($, '💾', tr(`${hero.name} se desconectó con la descarga`, `${hero.name} unplugged with the download`), false)
@@ -1608,6 +1729,7 @@ export const register: Register = on => {
           mission: cut(e.prompt, 700),
           kind: e.subagentType,
           isBackground: e.background,
+          ...(e.workflow?.runId ? { workflow: e.workflow.runId } : {}),
           status: 'running',
           doing: tr('🥾 en camino', '🥾 on the way'),
           actions: [],
@@ -1629,9 +1751,14 @@ export const register: Register = on => {
           hero.id,
         )
         if (promoted) await note($, `⬆ ${promoted}`)
+        // Quien lo conectó está delegando.
+        if (e.parentAgentId) {
+          const parent = e.parentAgentId
+          await update($, heroes, patchHero(parent, u => recordTool(u, 'Agent', {}, at)))
+        }
         if (!e.parentAgentId) {
           await update($, master, m => ({
-            ...m,
+            ...recordTool(m, 'Agent', {}, at),
             doing: tr(`📜 conectó a ${hero.name}`, `📜 jacked in ${hero.name}`),
             model: m.model || e.parentModel,
             actionCount: m.actionCount + 1,
@@ -1703,18 +1830,26 @@ export const register: Register = on => {
         const isHero = (await read($, heroes)).some(u => u.id === to) || listedAgents.has(to)
         if (to && !isHero && !/^[0-9a-f]{12,}$/i.test(to)) {
           const at = await $.clock.now()
-          talking = [...talking.filter(t => t.to !== to && at - t.at < TALK_MS), { to: to.slice(0, 32), at }]
+          talking = addTalk(talking, to, subjectOf(input.summary, input.message), at)
           await beat($, true)
         }
       }
+      const toolAt = await $.clock.now()
       if (e.agentId === undefined) {
-        await update($, master, m => ({
-          ...m,
-          doing: text,
-          actionCount: m.actionCount + 1,
-          turnActions: (m.turnActions ?? 0) + 1,
-          actions: [...m.actions, text].slice(-8),
-        }))
+        await update($, master, m =>
+          recordTool(
+            {
+              ...m,
+              doing: text,
+              actionCount: m.actionCount + 1,
+              turnActions: (m.turnActions ?? 0) + 1,
+              actions: [...m.actions, text].slice(-8),
+            },
+            tool,
+            input,
+            toolAt,
+          ),
+        )
       } else {
         const id = e.agentId
         const hero = (await read($, heroes)).find(u => u.id === id)
@@ -1731,14 +1866,22 @@ export const register: Register = on => {
         await update(
           $,
           heroes,
-          patchHero(id, u => ({
-            ...u,
-            doing: text,
-            lastActionAt: at,
-            actionCount: u.actionCount + 1,
-            actions: [...u.actions, text].slice(-8),
-          })),
+          patchHero(id, u =>
+            recordTool(
+              {
+                ...u,
+                doing: text,
+                lastActionAt: at,
+                actionCount: u.actionCount + 1,
+                actions: [...u.actions, text].slice(-8),
+              },
+              tool,
+              input,
+              at,
+            ),
+          ),
         )
+        await checkDuplicates($, id)
       }
     } catch {
       // El gremio nunca frena el trabajo.
@@ -1748,6 +1891,7 @@ export const register: Register = on => {
     const isQuestion = QUESTION_TOOLS.has(String(e.tool))
     if (isQuestion && callId) {
       asks.set(callId, await $.clock.now())
+      waitingPermission.add(e.agentId ?? 'main')
       askWhat =
         String(e.tool) === 'ExitPlanMode'
           ? tr('te pide aprobar un plan', 'asks you to approve a plan')
@@ -1757,10 +1901,13 @@ export const register: Register = on => {
     // Mientras corre una herramienta, el aventurero no está quieto.
     const agentId = e.agentId
     if (agentId !== undefined) inFlight.set(agentId, (inFlight.get(agentId) ?? 0) + 1)
+    else masterInFlight += 1
     try {
       return await next(e)
     } finally {
       if (agentId !== undefined) inFlight.set(agentId, Math.max(0, (inFlight.get(agentId) ?? 1) - 1))
+      else masterInFlight = Math.max(0, masterInFlight - 1)
+      waitingPermission.delete(agentId ?? 'main')
       const wasAsking = (callId !== undefined && asks.delete(callId)) || permissionAt !== null
       permissionAt = null
       if (asks.size === 0) askWhat = null
@@ -1773,6 +1920,7 @@ export const register: Register = on => {
   on('classic.PermissionRequest', async ($, e, next) => {
     try {
       permissionAt = await $.clock.now()
+      waitingPermission.add(e.agent_id ?? 'main')
       askWhat = tr(`te pide permiso: ${e.tool_name}`, `asks permission: ${e.tool_name}`)
       await beat($, true)
     } catch {
@@ -1913,6 +2061,66 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // El mapa de la Red: arriba los choques, las naves como árbol con sus programas,
+  // los enlaces y, plegada, la línea de tiempo del turno.
+  on('ui.render', { component: 'Pane', requestId: NET }, async ($, e) => {
+    const { Box, Text, Button } = $.ui.resolve(e)
+    const [party, dm, picked, isTimeline] = await Promise.all([read($, heroes), read($, master), read($, realmPicked), read($, timelineOpen)])
+    const now = await $.clock.now()
+    const width = Math.max(20, e.props.bodyColumns)
+    const { own, live } = await liveShips($, now)
+    const ownKey = own?.key ?? null
+    const lines = mapLines({ entries: live, ownKey, now, width, picked, detail: r => realmDetail(r, sessionHome, now) })
+    const timeline = timelineLines(party, dm.turnStartedAt ?? null, now, width - 2)
+    return (
+      <Box flexDirection="column">
+        <Text dimColor wrap="truncate-end">
+          {fit(netSummary(live, ownKey, now), width)}
+        </Text>
+        {lines.map(l => {
+          const go = l.go ? live.find(r => r.key === l.go) : undefined
+          if (go)
+            return (
+              <Box>
+                <Text>{l.text}</Text>
+                <Button key={`ir-${go.key}`} onPress={() => goTo($, go)}>
+                  {tr('🚪 Ir a la sesión', '🚪 Go to session')}
+                </Button>
+              </Box>
+            )
+          const key = l.key
+          if (key)
+            return (
+              <Button plain key={`reino-${key}`} onPress={() => update($, realmPicked, cur => (cur === key ? null : key))}>
+                <Text wrap="truncate-end" bold={l.tone === 'own'} color={l.tone === 'own' || l.tone === 'ask' ? CLASS_COLOR.maestro : undefined} dimColor={l.tone === 'dim'}>
+                  {l.text}
+                </Text>
+              </Button>
+            )
+          return (
+            <Text wrap="truncate-end" color={l.tone === 'warn' ? RED : undefined} bold={l.tone === 'warn'} dimColor={l.tone === 'dim'}>
+              {l.text}
+            </Text>
+          )
+        })}
+        {timeline.length > 0 && (
+          <Button plain key="linea" onPress={() => update($, timelineOpen, isOpen => !isOpen)}>
+            <Text dimColor wrap="truncate-end">
+              {fit(`${isTimeline ? '▾' : '▸'} ${tr('Línea de tiempo del turno', 'Turn timeline')} · ${timeline.length}`, width)}
+            </Text>
+          </Button>
+        )}
+        {isTimeline &&
+          timeline.map(t => (
+            <Text dimColor wrap="truncate-end">
+              {'  '}
+              {t}
+            </Text>
+          ))}
+      </Box>
+    )
+  })
+
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const [
       party,
@@ -1968,7 +2176,7 @@ export const register: Register = on => {
           </Text>
           {party.map(u => (
             <Text>
-              {u.name} ({u.model}): {u.doing}
+              {u.name} ({u.model}): {u.description} · {stepWithPhase(heroPhase(u, party, now), u.doing)}
             </Text>
           ))}
         </Box>
@@ -2027,14 +2235,30 @@ export const register: Register = on => {
     const running = active.filter(u => u.status === 'running').length
     hasRunning = running > 0
     // Quieto: en misión, sin herramienta en curso y sin acciones hace rato.
+    // El paso en curso con el ícono de su fase; al volver, el bocadillo con lo que trajo.
+    const phaseFor = (u: GremioHero) => heroPhase(u, party, now)
     const doingOf = (u: GremioHero) => {
       // Al volver, muestra en un bocadillo la primera frase de lo que trajo.
       if (u.status === 'done' && u.report && u.endedAt !== null && now - u.endedAt < RETURN_MS) return `💬 ${firstSentence(u.report)}`
+      const phase = phaseFor(u)
       const since = now - (u.lastActionAt ?? u.roundStartedAt ?? u.startedAt)
-      const isQuiet = u.status === 'running' && (inFlight.get(u.id) ?? 0) === 0 && since > QUIET_MS
-      return isQuiet ? tr(`💤 quieto hace ${Math.floor(since / 60_000)} min`, `💤 idle for ${Math.floor(since / 60_000)} min`) : u.doing
+      if (phase === 'idle') return tr(`💤 quieto hace ${Math.floor(since / 60_000)} min`, `💤 idle for ${Math.floor(since / 60_000)} min`)
+      if (phase === 'permission') return `⏸ ${phaseWord('permission')}`
+      if (phase === 'waiting') {
+        const kids = party.filter(k => k.parentId === u.id && k.status === 'running')
+        return `⏳ ${kids.length === 1 && kids[0] ? tr(`esperando a ${kids[0].name}`, `waiting for ${kids[0].name}`) : waitingText(kids.length)}`
+      }
+      return stepWithPhase(phase, u.doing)
     }
-    const says = !dm.isBusy && running > 0 ? tr('esperando a sus programas', 'waiting for the programs') : isIdle(dm.doing) ? idle() : dm.doing
+    const dmPhase = masterPhase(dm, party)
+    const says =
+      dmPhase === 'waiting'
+        ? waitingText(directRunning(party))
+        : dmPhase === 'permission'
+          ? phaseWord('permission')
+          : isIdle(dm.doing)
+            ? idle()
+            : stepWithPhase(dmPhase, dm.doing)
 
     // El Gran Maestre: su ficha de personaje, con datos de la sesión.
     // Vida = el contexto que le queda; Turno = lo que lleva; Grupo = sus aventureros.
@@ -2327,25 +2551,36 @@ export const register: Register = on => {
       </Box>
     )
 
-    // El reino: todas las sesiones con gremio, las que te necesitan primero.
+    // La Red: una línea con el resumen (tocarla abre el mapa) y, a la vista, los choques.
     const realmNow = otherSessions(kingdom, sessionKey ?? '', now)
-    const me = isRealmOpen ? await ownEntry($) : null
+    const me = realmNow.length > 0 ? await ownEntry($) : null
+    const liveNow = me ? [me, ...realmNow] : realmNow
+    const clashNow = clashesOf(liveNow, now)
+    const nameForKey = (key: string) => {
+      const r = liveNow.find(x => x.key === key)
+      return r ? nameOf(r) : key
+    }
+    // Si el mapa no cabe en pantalla, la lista de siempre se abre aquí mismo.
+    const showNet = async () => {
+      const opened = await openNet($).catch(() => ({ isPlaced: false }))
+      if (!opened.isPlaced) await update($, realmOpen, isOpen => !isOpen)
+    }
     const allRealm = me ? [...realmNow.filter(r => r.state === 'asking'), me, ...realmNow.filter(r => r.state !== 'asking')] : realmNow
     const realmBlock =
       realmNow.length === 0 ? null : (
         <Box flexDirection="column">
-          <Button plain key="reino" onPress={() => update($, realmOpen, isOpen => !isOpen)}>
+          <Button plain key="reino" onPress={showNet}>
             <Text wrap="truncate-end">
               <Text color={CLASS_COLOR.maestro}>{tr('🌐 Red', '🌐 Network')}</Text>
               <Text dimColor> {isRealmOpen ? '▾' : '▸'} </Text>
-              {realmNow.map((r, i) => (
-                <Text color={r.state === 'asking' ? CLASS_COLOR.maestro : undefined} dimColor={r.state === 'idle'}>
-                  {i > 0 ? ' · ' : ''}
-                  {realmSummary(r, now)}
-                </Text>
-              ))}
+              <Text color={realmNow.some(r => r.state === 'asking') ? CLASS_COLOR.maestro : undefined}>{netSummary(liveNow, me?.key ?? null, now)}</Text>
             </Text>
           </Button>
+          {clashNow.slice(0, 2).map(c => (
+            <Text color={RED} wrap="truncate-end">
+              {clashText(c, nameForKey)}
+            </Text>
+          ))}
           {isRealmOpen &&
             allRealm.map(r => (
               <Box flexDirection="column">
@@ -2479,8 +2714,11 @@ export const register: Register = on => {
     const slotWidth = isBigField ? BIG_SLOT : SLOT
     const slot = (u: GremioHero) => (
       <Box flexDirection="column" alignItems="center" width={slotWidth}>
-        <Box height={2} width={slotWidth - 1} overflow="hidden">
-          <Text wrap="wrap">{doingOf(u)}</Text>
+        <Box flexDirection="column" height={2} width={slotWidth - 1} overflow="hidden">
+          <Text wrap="truncate-end">{doingOf(u)}</Text>
+          <Text dimColor wrap="truncate-end">
+            🎯 {u.description}
+          </Text>
         </Box>
         {sprite(`u-${u.id}`, u.cls, u.status === 'running' ? 'busy' : u.status === 'done' ? 'idle' : 'down', isBigField ? 'big' : 'small')}
         <Button plain key={`sel-${u.id}`} onPress={() => select(u.id)}>
@@ -2629,7 +2867,8 @@ export const register: Register = on => {
       card = (
         <Box flexDirection="column" borderStyle="round" borderColor={CLASS_COLOR.maestro} paddingX={1}>
           <Text bold color={CLASS_COLOR.maestro}>
-            🖥️ {tr('Arquitecto', 'Architect')} · {dm.isBusy ? tr('trabajando', 'working') : tr('en reposo', 'resting')}
+            🖥️ {tr('Arquitecto', 'Architect')} ·{' '}
+            {dmPhase === 'waiting' ? waitingText(directRunning(party)) : dmPhase ? `${PHASE_ICON[dmPhase]} ${phaseWord(dmPhase)}` : dm.isBusy ? tr('trabajando', 'working') : tr('en reposo', 'resting')}
           </Text>
           <Text dimColor>
             {tr(`${dm.actionCount} acciones en la sesión`, `${dm.actionCount} actions in the session`)} · {party.length}{' '}
@@ -2695,7 +2934,11 @@ export const register: Register = on => {
             {hero.status === 'running' || hero.report === null ? (
               <Text>
                 <Text dimColor>{tr('Ahora: ', 'Now: ')}</Text>
-                {doingOf(hero)}
+                {(() => {
+                  // La fase en una palabra delante del paso: "🔎 investigando · lee a.ts".
+                  const p = phaseFor(hero)
+                  return p && p !== 'idle' && p !== 'waiting' && p !== 'permission' ? `${PHASE_ICON[p]} ${phaseWord(p)} · ${stripIcon(hero.doing)}` : doingOf(hero)
+                })()}
               </Text>
             ) : (
               <Text>{tr('💾', '💾')} {cut(hero.report, isMore ? 600 : 160)}</Text>

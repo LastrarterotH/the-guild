@@ -65,13 +65,63 @@ export function describeTool(tool: string, input: Record<string, unknown>): stri
     case 'Workflow':
       return tr('🌐 orquesta un flujo de programas', '🌐 orchestrates a workflow')
   }
-  if (tool.startsWith('mcp__')) {
-    const [, server = '', name = ''] = tool.split('__')
-    const who = server.replace(/^claude_ai_/, '').replace(/^plugin_[^_]+_/, '').replace(/_/g, ' ')
-    return `📡 ${who}: ${name.replace(/[_-]/g, ' ')}`
-  }
+  const connector = connectorText(tool)
+  if (connector) return `📡 ${connector}`
   return tr(`🧰 usa ${tool}`, `🧰 uses ${tool}`)
 }
+
+const READ_VERBS = new Set(['search', 'list', 'get', 'read', 'fetch', 'query', 'find', 'view', 'describe', 'download', 'lookup', 'retrieve', 'check', 'export'])
+const WRITE_VERBS = new Set([
+  'create',
+  'send',
+  'update',
+  'delete',
+  'add',
+  'reply',
+  'remove',
+  'set',
+  'move',
+  'post',
+  'upload',
+  'edit',
+  'write',
+  'apply',
+  'mark',
+  'label',
+  'trash',
+  'publish',
+  'forward',
+  'merge',
+  'archive',
+])
+
+/** El nombre limpio de un servidor MCP: "claude_ai_Google_Drive" pasa a "Google Drive". */
+export function serverName(server: string): string {
+  return server
+    .replace(/^claude_ai_/, '')
+    .replace(/^plugin_[^_]+_/, '')
+    .replace(/[_-]+/g, ' ')
+    .trim()
+}
+
+/** Un conector en lenguaje humano: "consulta Gmail", "escribe en ClickUp", "usa Notion". null si no es un conector. */
+export function connectorText(tool: string): string | null {
+  if (!tool.startsWith('mcp__')) return null
+  const [, server = '', name = ''] = tool.split('__')
+  const who = serverName(server) || server
+  const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+  const own = new Set([squash(who), ...who.split(' ').map(squash)])
+  const words = name
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .split(/[\s_\-.]+/)
+    .map(w => w.toLowerCase())
+    .filter(w => w && !own.has(w) && w !== 'mcp')
+  const verb = words[0] ?? ''
+  if (READ_VERBS.has(verb)) return tr(`consulta ${who}`, `queries ${who}`)
+  if (WRITE_VERBS.has(verb)) return tr(`escribe en ${who}`, `writes to ${who}`)
+  return tr(`usa ${who}`, `uses ${who}`)
+}
+
 
 /** "claude-haiku-5-5" pasa a "Haiku 5.5"; un alias como "haiku" a "Haiku". */
 export function modelName(id: string): string {

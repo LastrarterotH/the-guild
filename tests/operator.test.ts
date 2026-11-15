@@ -1,9 +1,11 @@
 import type { On } from 'claude-code'
-import type { GremioRealmEntry } from '../types'
+import type { GremioHero, GremioRealmEntry, GremioTrack } from '../types'
 import { expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
 import { epithet } from '../hooks/apodos'
+import { closingLine, connectorText, overlap, phaseOf, record as recordTool, stepWithPhase, toolKind } from '../hooks/fase'
+import { addTalk, clashesOf, columns, crewOf, fit, linksOf, mapLines, matches, recentEdits, subjectOf, summaryText, timelineLines } from '../hooks/mapa'
 import { absorbQuota, addProjectSpend, projectShares } from '../hooks/libro'
 import { coinsOf, firstUserTexts, ghosttyFocusScript, isGhostty, lastTitle, realmDetail, realmRow, realmSummary, talkingTo, titleCommand } from '../hooks/reino'
 import { classOf, describeTool, firstSentence, modelName } from '../hooks/describe'
@@ -28,6 +30,9 @@ const PANE = {
     view: {},
   },
 } as const
+
+/** El mapa de la Red, en su propio panel. */
+const NET_PANE = { ...PANE, requestId: 'operator-net', props: { ...PANE.props, title: 'La Red' } } as const
 
 const SPAWN = {
   tool_use_id: 'tu1',
@@ -276,7 +281,7 @@ test('clases, modelos, Código y frases', () => {
   expect(classOf('claude-opus-5-5')).toBe('mago')
   expect(classOf('claude-fable-5-1')).toBe('archimago')
   expect(modelName('claude-opus-5-5')).toBe('Opus 5.5')
-  expect(describeTool('mcp__claude_ai_Gmail__search_threads', {})).toBe('📡 Gmail: search threads')
+  expect(describeTool('mcp__claude_ai_Gmail__search_threads', {})).toBe('📡 consulta Gmail')
   expect(plan('buscar el logo', 'Encuentra dónde está el logo').effort).toBe('low')
   expect(plan('arreglar el bug', 'Corrige el error del login').alias).toBe('sonnet')
   expect(plan('diseñar la arquitectura', 'Diseña el sistema de pagos').effort).toBe('high')
@@ -521,9 +526,9 @@ test('el registro muestra las últimas tres y se abre al tocarla', async ($, on)
   const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
   expect((await ui.find({ key: 'cronica' }))?.text).toBe('🧾 Registro ▸')
   expect(await ui.find({ type: 'Text', text: /🔌 El Arquitecto conectó a Centinela 5, el Rastreador: tarea 5$/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /tarea 2$/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /Rastreador: tarea 2$/ })).toBeUndefined()
   await ui.press({ key: 'cronica' })
-  expect(await ui.find({ type: 'Text', text: /tarea 2$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Rastreador: tarea 2$/ })).toBeDefined()
   await ui.unmount()
 })
 
@@ -850,11 +855,16 @@ function claudeIn(on: On, value: string) {
   on('config.list', () => ({ value: [{ key: 'language', label: 'Language', kind: 'text', value, provider: { plugin: 'engine', tier: 'core' }, isLocked: false }] }) as never)
 }
 
-function startMocks(on: On, id: string) {
+/** `opened` anota los paneles que se abren; con `isPlaced` en false, no hay lugar en pantalla para los que no son el principal. */
+function startMocks(on: On, id: string, opened: string[] = [], isPlaced = true) {
   on('command.register', () => ({ value: undefined }) as never)
   claudeIn(on, 'Español')
   on('session.usage', () => ({ value: { startedAt: T0, context: { window: 1_000_000, tokens: 320_000, percent: 32 }, rateLimits: [] } }) as never)
-  on('ui.open', () => ({ value: { isPlaced: true } }) as never)
+  on('ui.open', (_, e) => {
+    const paneId = (e as unknown as { id: string }).id
+    opened.push(paneId)
+    return { value: isPlaced || paneId === 'operator' ? { isPlaced: true } : { isPlaced: false, reason: 'sin lugar' } } as never
+  })
   on('session.start', (_, e) => e as never)
   on('session.id', () => ({ value: id }) as never)
   on('session.measure', (_, e) => ({ changed: e.changed }))
@@ -873,26 +883,28 @@ test('la Red: las otras sesiones aparecen con su estado y la que pregunta va a l
     shown.push(e.text)
     return { value: undefined }
   })
-  startMocks(on, 'propia')
+  const opened: string[] = []
+  startMocks(on, 'propia', opened)
   await $.session.start({ cwd: '/Users/ana/Code/gremio', surface: 'terminal', isInteractive: true } as never)
   expect(shown.at(-1)).toBe('♥ 68 · ❓ huerto')
   const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
-  // La que pregunta primero; la que no late hace 10 min no aparece.
-  expect((await ui.find({ key: 'reino' }))?.text).toBe('🌐 Red ▸ Osiris ❓ 2 min · Ícaro ⏳')
+  // Una línea con el resumen; la que no late hace 10 min no cuenta.
+  expect((await ui.find({ key: 'reino' }))?.text).toBe('🌐 Red ▸ 3 naves · 1 te necesita')
   // Arriba de todo, el aviso de la que te pregunta.
   expect(await ui.find({ type: 'Text', text: /^❓ Osiris te pide permiso: Bash · 2 min · 🚪 ir$/ })).toBeDefined()
   await ui.press({ key: 'reino' })
-  // Abierto: una fila por sesión, la propia marcada con ●, las que te necesitan primero.
-  const rows = (await ui.findAll({ type: 'Button' })).filter(b => String(b.key ?? '').startsWith('reino-')).map(b => b.text)
-  expect(rows).toHaveLength(3)
-  expect(rows[0]).toMatch(/^  ❓ Osiris\s+2 min  ♥ 70   🔋 8$/)
-  expect(rows[1]).toMatch(/^  💤 ● Vigilante\s+ahora  ♥ 68/)
-  expect(rows[2]).toMatch(/^  ⏳ Ícaro\s+1 min  ♥ 50\s+🔌 2$/)
-  // Al tocar una fila: qué te pide y su carpeta.
-  await ui.press({ key: 'reino-otra' })
-  expect(await ui.find({ type: 'Text', text: /^      te pide permiso: Bash$/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /^      📁 ~\/Code\/huerto$/ })).toBeDefined()
+  expect(opened.at(-1)).toBe('operator-net')
   await ui.unmount()
+  // El mapa: una nave por sesión viva (la propia primero), las que te necesitan antes.
+  const map = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...NET_PANE })
+  const rows = (await map.findAll({ type: 'Button' })).filter(b => String(b.key ?? '').startsWith('reino-')).map(b => b.text)
+  expect(rows).toEqual(['🖥 Vigilante (gremio) 💤', '🖥 Osiris (huerto) ❓ · 🔋 8', '🖥 Ícaro ⏳'])
+  // Al tocar una nave: qué te pide, su carpeta y el botón para ir.
+  await map.press({ key: 'reino-otra' })
+  expect(await map.find({ type: 'Text', text: /^\s+te pide permiso: Bash$/ })).toBeDefined()
+  expect(await map.find({ type: 'Text', text: /^\s+📁 ~\/Code\/huerto$/ })).toBeDefined()
+  expect(await map.find({ key: 'ir-otra' })).toBeDefined()
+  await map.unmount()
 })
 
 test('al empezar un turno, el Arquitecto sabe a quién puede retomar con su memoria', async ($, on) => {
@@ -985,9 +997,14 @@ test('el nombre en la Red sale de la raíz de la sesión, no de la carpeta a la 
   mock.clock(on, { now: T0 })
   mock.env(on, { HOME: '/Users/ana' })
   mock.store(on, { 'reino.otra': { key: 'otra', label: 'huerto', state: 'idle', since: T0, running: 0, life: null, at: T0 - 1000 } })
-  startMocks(on, 'propia')
+  startMocks(on, 'propia', [], false)
   on('session.root', () => ({ value: '/Users/ana/Code/faro' }) as never)
   await $.session.start({ cwd: '/Users/ana/.claude/projects/-Users-ana/memory', surface: 'terminal', isInteractive: true } as never)
+  // En el mapa, la nave lleva la carpeta raíz.
+  const map = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...NET_PANE })
+  expect((await map.find({ key: 'reino-propia' }))?.text).toBe('🖥 Vigilante (faro) 💤')
+  await map.unmount()
+  // Si el mapa no tiene lugar en pantalla, la lista se abre en el panel principal.
   const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
   await ui.press({ key: 'reino' })
   const rows = (await ui.findAll({ type: 'Button' })).filter(b => String(b.key ?? '').startsWith('reino-')).map(b => b.text)
@@ -1040,11 +1057,14 @@ test('ir a la sesión: la Red le pide a Terminal la pestaña de esa sesión', as
   await ui.press({ key: 'ir-pide-otra' })
   const osa = runs.find(r => r[0] === 'osascript')
   expect(osa?.[2]).toContain('if ({"/dev/ttys001", "/dev/ttys004"} contains (tty of t)) or ((custom title of t) ends with "Recetario") then')
-  // Y desde el reino abierto, en el detalle de su fila.
-  await ui.press({ key: 'reino' })
-  await ui.press({ key: 'reino-otra' })
-  expect(await ui.find({ key: 'ir-otra' })).toBeDefined()
   await ui.unmount()
+  // Y desde el mapa, en el detalle de su nave.
+  const map = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...NET_PANE })
+  await map.press({ key: 'reino-otra' })
+  const before = runs.filter(r => r[0] === 'osascript').length
+  await map.press({ key: 'ir-otra' })
+  expect(runs.filter(r => r[0] === 'osascript').length).toBe(before + 1)
+  await map.unmount()
 })
 
 test('el bocadillo: la primera frase de la descarga, sin Markdown y corta', async ($, on) => {
@@ -1421,4 +1441,253 @@ test('la Red muestra la acción en curso de una sesión que trabaja', () => {
   const now = 1_000_000
   const e = { key: 'a', label: 'Recetario', ship: 'Logos', state: 'working', since: now, running: 0, life: 50, at: now, doing: 'escribiendo armar.py' } as GremioRealmEntry
   expect(realmSummary(e, now)).toBe('Logos ⏳ escribiendo armar.py')
+})
+
+// ── Claridad: fase, paso y cierre ───────────────────────────────────────────
+
+test('la fase sale de las últimas herramientas, y lo que detiene manda', () => {
+  expect(toolKind('Read', {})).toBe('read')
+  expect(toolKind('Bash', { command: 'npx tsc -p .' })).toBe('test')
+  expect(toolKind('Bash', { command: 'ls', description: 'corre las pruebas' })).toBe('run')
+  expect(toolKind('Bash', { command: 'bun test' })).toBe('test')
+  expect(toolKind('mcp__claude_ai_Gmail__search_threads', {})).toBe('mcp')
+  expect(toolKind('Workflow', {})).toBe('delegate')
+  expect(phaseOf({ kinds: [] })).toBeNull()
+  expect(phaseOf({ kinds: ['read', 'read', 'read', 'write'] })).toBe('investigating')
+  expect(phaseOf({ kinds: ['read', 'write', 'write'] })).toBe('writing')
+  expect(phaseOf({ kinds: ['read', 'read', 'test'] })).toBe('investigating')
+  expect(phaseOf({ kinds: ['write', 'test', 'test'] })).toBe('testing')
+  expect(phaseOf({ kinds: ['read'], isWaiting: true })).toBe('waiting')
+  expect(phaseOf({ kinds: ['read'], isWaiting: true, isAsking: true })).toBe('permission')
+  expect(phaseOf({ kinds: ['read'], isQuiet: true })).toBe('idle')
+  expect(stepWithPhase('investigating', '🧾 lee tema.ts')).toBe('🔎 lee tema.ts')
+  expect(stepWithPhase(null, '🥾 en camino')).toBe('🥾 en camino')
+})
+
+test('los conectores en lenguaje humano, por el verbo de la herramienta', () => {
+  expect(connectorText('mcp__claude_ai_Gmail__search_threads')).toBe('consulta Gmail')
+  expect(connectorText('mcp__claude_ai_ClickUp__clickup_create_task')).toBe('escribe en ClickUp')
+  expect(connectorText('mcp__claude_ai_Google_Drive__read_file_content')).toBe('consulta Google Drive')
+  expect(connectorText('mcp__claude_ai_Notion__notion-duplicate-page')).toBe('usa Notion')
+  expect(connectorText('mcp__claude_ai_Slack__slack_send_message')).toBe('escribe en Slack')
+  expect(connectorText('Read')).toBeNull()
+})
+
+test('el registro de herramientas: lecturas, búsquedas, ediciones y el cierre en una línea', () => {
+  let t: GremioTrack = recordTool({}, 'Read', { file_path: '/r/a.ts' }, 1)
+  t = recordTool(t, 'Grep', { pattern: 'theme()' }, 2)
+  t = recordTool(t, 'Edit', { file_path: '/r/b.ts' }, 3)
+  t = recordTool(t, 'Edit', { file_path: '/r/b.ts' }, 4)
+  t = recordTool(t, 'Write', { file_path: '/r/c.ts' }, 5)
+  expect(t.kinds).toEqual(['read', 'read', 'write', 'write', 'write'])
+  expect(t.reads).toEqual(['/r/a.ts'])
+  expect(t.searches).toEqual([{ q: 'theme()', at: 2 }])
+  expect(t.edits).toEqual([{ path: '/r/b.ts', at: 4 }, { path: '/r/c.ts', at: 5 }])
+  expect(closingLine('## Hecho\n\nCambié el tema. Lo demás sigue.', t.edits)).toBe('"Cambié el tema." · tocó 2 archivos: b.ts, c.ts')
+  expect(closingLine(null, [])).toBeNull()
+  expect(closingLine('', [{ path: '/a', at: 1 }, { path: '/b', at: 1 }, { path: '/c', at: 1 }, { path: '/d', at: 1 }])).toBe('tocó 4 archivos: a, b, c…')
+})
+
+test('trabajo duplicado: tres archivos leídos en común o la misma búsqueda en menos de 2 minutos', () => {
+  const a = { reads: ['/x/1.ts', '/x/2.ts', '/x/3.ts'], searches: [] }
+  expect(overlap(a, { reads: ['/x/1.ts', '/x/2.ts'] })).toBeNull()
+  expect(overlap(a, { reads: ['/x/3.ts', '/x/2.ts', '/x/1.ts'] })).toEqual(['1.ts', '2.ts', '3.ts'])
+  expect(overlap({ searches: [{ q: 'Logo', at: 0 }] }, { searches: [{ q: 'logo ', at: 90_000 }] })).toEqual(['"Logo"'])
+  expect(overlap({ searches: [{ q: 'logo', at: 0 }] }, { searches: [{ q: 'logo', at: 3 * 60_000 }] })).toBeNull()
+})
+
+test('cada programa muestra su objetivo y su paso con el ícono de la fase; al volver, el cierre con los archivos', async ($, on) => {
+  const clock = mock.clock(on, { now: T0 })
+  mock.store(on)
+  on('agent.spawn', () => ({ model: 'claude-sonnet-5-5', agentId: 'cl1' }))
+  on('agent.list', () => ({ value: [{ id: 'cl1', description: '', type: 'general-purpose', status: 'running' }] }) as never)
+  on('tool.call', () => ({ result: 'ok' }))
+  on('turn.complete', (_, e) => ({ text: e.answer }))
+  await $.agent.spawn({ ...SPAWN, description: 'arreglar el tema', prompt: 'Arregla el tema del panel.', model: 'sonnet' })
+  await $.tool.call({ tool: 'Read', file_path: '/r/tema.ts', agentId: 'cl1' } as never)
+  await $.tool.call({ tool: 'Edit', file_path: '/r/tema.ts', agentId: 'cl1' } as never)
+  await $.tool.call({ tool: 'Edit', file_path: '/r/reino.ts', agentId: 'cl1' } as never)
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
+  expect(await ui.find({ type: 'Text', text: /^📝 edita reino\.ts$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^🎯 arreglar el tema$/ })).toBeDefined()
+  // En la ficha, la fase en una palabra delante del paso.
+  await ui.press({ key: 'sel-cl1' })
+  expect(await ui.find({ type: 'Text', text: /📝 escribiendo · edita reino\.ts/ })).toBeDefined()
+  await ui.unmount()
+  await clock.advance(60_000)
+  await $.turn.complete({ answer: 'El tema ya no se rompe. Detalles abajo.', durationMs: 900, isAborted: false, turnId: 't1', agentId: 'cl1', reason: 'answer', usage: HAIKU_USAGE })
+  const ui2 = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
+  await ui2.press({ key: 'cronica' })
+  expect(await ui2.find({ type: 'Text', text: /se desconectó con la descarga · 1 min 0 s · "El tema ya no se rompe\." · tocó 2 archivos: tema\.ts, reino\.ts/ })).toBeDefined()
+  await ui2.unmount()
+})
+
+test('el Arquitecto que solo espera dice a cuántos programas espera', async ($, on) => {
+  mock.clock(on, { now: T0 })
+  mock.store(on)
+  let n = 0
+  on('agent.spawn', () => {
+    n += 1
+    return { model: 'claude-haiku-5-5', agentId: `w${n}` }
+  })
+  on('turn.start', (_, e) => ({ turnId: e.turnId }))
+  await $.turn.start({ text: 'busca', turnId: 'm1' })
+  await $.agent.spawn(SPAWN)
+  await $.agent.spawn({ ...SPAWN, tool_use_id: 'tu2' })
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
+  expect(await ui.find({ type: 'Text', text: /«esperando a 2 programas»/ })).toBeDefined()
+  await ui.press({ key: 'sel-maestro' })
+  expect(await ui.find({ type: 'Text', text: /^🖥️ Arquitecto · esperando a 2 programas$/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('dos programas que revisan lo mismo dejan una nota en el Registro, una vez', async ($, on) => {
+  mock.clock(on, { now: T0 })
+  mock.store(on)
+  let n = 0
+  on('agent.spawn', () => {
+    n += 1
+    return { model: n === 1 ? 'claude-sonnet-5-5' : 'claude-haiku-5-5', agentId: `d${n}` }
+  })
+  on('tool.call', () => ({ result: 'ok' }))
+  await $.agent.spawn(SPAWN)
+  await $.agent.spawn({ ...SPAWN, tool_use_id: 'tu2' })
+  for (const id of ['d1', 'd2']) for (const f of ['tema.ts', 'reino.ts', 'naves.ts']) await $.tool.call({ tool: 'Read', file_path: `/r/${f}`, agentId: id } as never)
+  await $.tool.call({ tool: 'Read', file_path: '/r/otro.ts', agentId: 'd2' } as never)
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
+  await ui.press({ key: 'cronica' })
+  const notes = (await ui.findAll({ type: 'Text' })).filter(t => /revisan lo mismo/.test(t.text))
+  expect(notes.map(t => t.text.replace(/^.* · ⚠/, '⚠'))).toEqual(['⚠ Agente 1 y Centinela 1 revisan lo mismo: tema.ts, reino.ts, naves.ts'])
+  await ui.unmount()
+})
+
+// ── El mapa de la Red ───────────────────────────────────────────────────────
+
+const ship = (key: string, extra: Partial<GremioRealmEntry> = {}): GremioRealmEntry => ({ key, label: key, state: 'working', since: T0, running: 0, life: 50, at: T0, ...extra }) as GremioRealmEntry
+
+test('los mensajes entre sesiones: cuenta, asunto y dirección', () => {
+  let talks = addTalk([], 'Logos', subjectOf(undefined, '\nRevisa el mapa de la Red, por favor\nmás texto'), T0)
+  talks = addTalk(talks, 'Logos', subjectOf('choque en tema.ts', 'x'), T0 + 1000)
+  expect(talks).toEqual([{ to: 'Logos', at: T0 + 1000, count: 2, subject: 'choque en tema.ts' }])
+  expect(subjectOf(undefined, 'Revisa el mapa de la Red, por favor, y dime qué ves allí')).toBe('Revisa el mapa de la Red, por favor, y…')
+  expect(matches('logos', { key: 'b', label: 'x', ship: 'Logos' })).toBe(true)
+  expect(matches('recetario', { key: 'b', label: 'Recetario' })).toBe(true)
+  expect(matches('3f2a9c1d', { key: '3f2a9c1d-aaaa', label: 'x' })).toBe(true)
+  expect(matches('otra', { key: 'b', label: 'x', ship: 'Logos' })).toBe(false)
+  const a = ship('a', { ship: 'Osiris', talking: talks })
+  const b = ship('b', { ship: 'Logos', talking: [{ to: 'osiris', at: T0 + 2000, count: 1, subject: 'listo' }] })
+  const c = ship('c', { ship: 'Ícaro' })
+  expect(linksOf([a, b, c], T0 + 3000, 'a')).toEqual([{ a: 'a', b: 'b', dir: '⇄', count: 3, subject: 'listo', at: T0 + 2000 }])
+  expect(linksOf([a, c], T0 + 3000, 'a')).toEqual([])
+  expect(linksOf([ship('a', { ship: 'Osiris' }), b], T0 + 3000, 'a')).toEqual([{ a: 'a', b: 'b', dir: '←', count: 1, subject: 'listo', at: T0 + 2000 }])
+})
+
+test('el choque: dos sesiones vivas editando el mismo archivo en los últimos 10 minutos', () => {
+  const now = T0 + 20 * 60_000
+  const x = ship('x', { edits: [{ path: '/r/tema.ts', at: now - 60_000 }, { path: '/r/viejo.ts', at: now - 15 * 60_000 }] })
+  const y = ship('y', { edits: [{ path: '/r/tema.ts', at: now - 120_000 }, { path: '/r/viejo.ts', at: now - 60_000 }] })
+  expect(clashesOf([y, x], now)).toEqual([{ a: 'x', b: 'y', file: '/r/tema.ts' }])
+  expect(recentEdits([{ path: '/a', at: now - 1 }, { path: '/a', at: now - 5 }, { path: '/b', at: now - 11 * 60_000 }], now)).toEqual([{ path: '/a', at: now - 1 }])
+  expect(summaryText({ ships: 3, asking: 1, links: 1, clashes: 1 })).toBe('3 naves · 1 te necesita · 1 enlace · ⚠ 1 choque')
+  expect(summaryText({ ships: 1, asking: 0, links: 0, clashes: 0 })).toBe('1 nave')
+})
+
+test('el mapa: choques arriba, naves en árbol con sus programas, carpetas compartidas y enlaces', () => {
+  const now = T0
+  const own = ship('own', {
+    ship: 'Vigilante',
+    folder: '/u/the-guild',
+    phase: 'writing',
+    doing: '📝 edita tema.ts',
+    coins: 4,
+    edits: [{ path: '/u/the-guild/hooks/tema.ts', at: now - 1000 }],
+    talking: [{ to: 'Logos', at: now - 60_000, count: 2, subject: 'revisa el mapa' }],
+    crew: [
+      { id: 'a1', name: 'Centinela 1', cls: 'picaro', phase: 'investigating', goal: 'buscar el logo', parent: null },
+      { id: 'a2', name: 'Agente 2', cls: 'bardo', phase: 'writing', goal: 'arreglar el bug', parent: 'a1' },
+      { id: 'w1', name: 'Agente 3', cls: 'bardo', phase: null, goal: 'revisar a', parent: null, wf: 'wf_1' },
+      { id: 'w2', name: 'Agente 4', cls: 'bardo', phase: 'testing', goal: 'revisar b', parent: null, wf: 'wf_1' },
+    ],
+  })
+  const osiris = ship('osi', { ship: 'Osiris', folder: '/u/the-guild', state: 'asking', edits: [{ path: '/u/the-guild/hooks/tema.ts', at: now - 2000 }] })
+  const logos = ship('log', { ship: 'Logos', folder: '/u/recetario', state: 'ready' })
+  const lines = mapLines({ entries: [own, osiris, logos], ownKey: 'own', now, width: 80 })
+  expect(lines.map(l => l.text)).toEqual([
+    '⚠ Osiris y Vigilante editan el mismo archivo: tema.ts',
+    '📁 the-guild',
+    '├─ 🖥 Vigilante (the-guild) ⏳ 📝 edita tema.ts · 🔋 4',
+    '│  ├─ Centinela 1 🔎 buscar el logo',
+    '│  │  └─ Agente 2 📝 arreglar el bug',
+    '│  └─ 🔗 flujo de trabajo · 2',
+    '│     ├─ Agente 3 · revisar a',
+    '│     └─ Agente 4 🧪 revisar b',
+    '└─ 🖥 Osiris (the-guild) ❓',
+    '🖥 Logos (recetario) ✅',
+    '💬 Vigilante → Logos · 2 · "revisa el mapa" · hace 1 min',
+  ])
+  expect(lines.filter(l => l.key).map(l => l.key)).toEqual(['own', 'osi', 'log'])
+  expect(lines[0]?.tone).toBe('warn')
+  // Angosto: nada pasa del ancho.
+  for (const l of mapLines({ entries: [own, osiris, logos], ownKey: 'own', now, width: 24 })) expect(columns(l.text)).toBeLessThanOrEqual(24)
+  // Con el detalle de una nave abierto: sus líneas y el botón para ir (no en la propia).
+  const open = mapLines({ entries: [own, osiris, logos], ownKey: 'own', now, width: 80, picked: 'log', detail: () => ['📁 ~/recetario'] })
+  expect(open.slice(-3).map(l => [l.text, l.go])).toEqual([
+    ['     📁 ~/recetario', undefined],
+    ['     ', 'log'],
+    ['💬 Vigilante → Logos · 2 · "revisa el mapa" · hace 1 min', undefined],
+  ])
+})
+
+test('fit corta por columnas y la tripulación viaja compacta', () => {
+  expect(fit('abcdef', 4)).toBe('abc…')
+  expect(fit('🔎 abc', 5)).toBe('🔎 a…')
+  expect(columns('🔎 a')).toBe(4)
+  const hero = (id: string, extra: Partial<GremioHero> = {}): GremioHero => ({ id, parentId: null, name: id, cls: 'picaro', description: 'una descripción bastante larga para el mapa de la Red', status: 'running', startedAt: T0, ...extra }) as GremioHero
+  const crew = crewOf([hero('a'), hero('b', { status: 'done' }), hero('c', { parentId: 'a', workflow: 'wf_9' })], () => 'investigating')
+  expect(crew).toEqual([
+    { id: 'a', name: 'a', cls: 'picaro', phase: 'investigating', goal: 'una descripción bastante larga …', parent: null },
+    { id: 'c', name: 'c', cls: 'picaro', phase: 'investigating', goal: 'una descripción bastante larga …', parent: 'a', wf: 'wf_9' },
+  ])
+  const at = new Date(2026, 10, 5, 14, 2).getTime()
+  const lines = timelineLines([hero('Centinela 1', { startedAt: at, status: 'done', endedAt: at + 3 * 60_000 }), hero('Agente 1', { startedAt: at + 60_000 }), hero('viejo', { startedAt: at - 3_600_000 })], at - 1000, at + 5 * 60_000, 60)
+  expect(lines).toEqual(['Centinela 1 14:02 → 14:05 · 3 min', 'Agente 1 14:03 → … · 4 min'])
+})
+
+test('/operador red abre el mapa; el latido lleva tripulación, archivos editados y asunto de los mensajes', async ($, on) => {
+  mock.clock(on, { now: T0 })
+  mock.env(on, { HOME: '/Users/ana' })
+  const store = memoryStore(on)
+  const opened: string[] = []
+  on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: 'h1' }))
+  on('tool.call', () => ({ result: 'ok' }))
+  startMocks(on, 'propia', opened)
+  await $.session.start({ cwd: '/Users/ana/Code/recetario', surface: 'terminal', isInteractive: true } as never)
+  const r = await $.command.run({ command: 'operador', args: 'mapa', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } })
+  expect(textOf(r)).toBe('La Red abierta.')
+  expect(opened.at(-1)).toBe('operator-net')
+  await $.agent.spawn(SPAWN)
+  await $.tool.call({ tool: 'Write', file_path: '/Users/ana/Code/recetario/a.md' } as never)
+  await $.tool.call({ tool: 'SendMessage', to: 'Logos', message: 'Revisa el choque en a.md\nmás', summary: '' } as never)
+  const beat = store.get('reino.propia') as GremioRealmEntry
+  expect(beat.crew?.map(m => [m.name, m.goal])).toEqual([['Centinela 1', 'buscar el logo']])
+  expect(beat.edits?.map(e => e.path)).toEqual(['/Users/ana/Code/recetario/a.md'])
+  expect(beat.talking).toEqual([{ to: 'Logos', at: T0, count: 1, subject: 'Revisa el choque en a.md' }])
+})
+
+test('un choque con otra sesión se ve en el panel principal sin abrir nada y queda en el Registro una vez', async ($, on) => {
+  mock.clock(on, { now: T0 })
+  mock.env(on, { HOME: '/Users/ana' })
+  mock.store(on, {
+    'reino.otra': { key: 'otra', label: 'huerto', state: 'working', since: T0, running: 0, life: 70, at: T0 - 1000, edits: [{ path: '/Users/ana/Code/huerto/a.ts', at: T0 - 30_000 }] },
+  })
+  on('tool.call', () => ({ result: 'ok' }))
+  startMocks(on, 'propia')
+  await $.session.start({ cwd: '/Users/ana/Code/huerto', surface: 'terminal', isInteractive: true } as never)
+  await $.tool.call({ tool: 'Edit', file_path: '/Users/ana/Code/huerto/a.ts' } as never)
+  const ui = await $.ui.mount({ plugin: 'operator', surface: 'terminal', ...PANE })
+  for (let i = 0; i < 3; i++) await $.session.measure(measure(10, 5))
+  expect((await ui.find({ key: 'reino' }))?.text).toBe('🌐 Red ▸ 2 naves · ⚠ 1 choque')
+  const warn = (await ui.findAll({ type: 'Text' })).filter(t => /^⚠ Osiris y Vigilante editan el mismo archivo: a\.ts$/.test(t.text))
+  expect(warn.length).toBeGreaterThan(0)
+  await ui.unmount()
 })
