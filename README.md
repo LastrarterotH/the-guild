@@ -57,7 +57,7 @@ A mod for Claude Code. You are **the Operator**: the one who watches the screens
 
 ## Commands
 
-- `/operator` opens the panel (`/operador` also works when the session speaks Spanish).
+- `/operator` opens the panel (when the session speaks Spanish the command is `/operador` instead).
 - `/operator sounds` plays all the sounds in order (`sonidos`).
 - `/operator accounts` shows Matrix power and the Archive (`cuentas`).
 - `/operator net` opens the Network map (`red`, `map`, `mapa`).

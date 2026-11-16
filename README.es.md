@@ -57,7 +57,7 @@ Un mod para Claude Code. Tú eres **el Operador**: quien mira las pantallas, ve 
 
 ## Comandos
 
-- `/operator` abre el panel (`/operador` también, si la sesión habla español).
+- `/operador` abre el panel (si la sesión habla inglés, el comando es `/operator`).
 - `/operador sonidos` toca todos los sonidos en orden (`sounds`).
 - `/operador cuentas` muestra la energía de la Matrix y el Archivo (`accounts`).
 - `/operador red` abre el mapa de la Red (`net`, `map`, `mapa`).

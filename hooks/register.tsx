@@ -1158,8 +1158,8 @@ export const register: Register = on => {
     }
     await importOldStore($)
     await pickLanguage($)
-    // «/operator» para todos; «/operador» también, para quien habla español.
-    for (const name of lang() === 'es' ? ['operator', 'operador'] : ['operator']) {
+    // Un solo comando, en el idioma de la sesión: dos entradas iguales en el menú confunden.
+    for (const name of lang() === 'es' ? ['operador'] : ['operator']) {
       await $.command.register({
         name,
         description: tr(

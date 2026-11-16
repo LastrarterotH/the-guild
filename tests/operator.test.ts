@@ -1260,7 +1260,7 @@ test('en inglés: con Claude Code en English el Operador habla inglés', async (
     on('prompt.compose', () => ({ sections: [{ id: 'intro', text: 'hi', scope: 'shared' }] }))
     on('ui.status', () => ({ value: undefined }))
     const registered = await startIn($, on, 'English')
-    // Solo «/operator»: «/operador» se ofrece a quien habla español.
+    // Solo «/operator»: quien habla español tiene «/operador» en su lugar.
     expect(registered).toEqual(['operator'])
     // Una conexión en inglés también va a un Centinela (palabras clave en inglés).
     await $.agent.spawn({ ...SPAWN, description: 'find the logo', prompt: 'Find where the logo is defined and tell me the path.', model: undefined } as never)
@@ -1288,7 +1288,7 @@ test('/operator language cambia el idioma, lo recuerda y «auto» vuelve a segui
     mock.env(on, { HOME: '/Users/ana' })
     const store = memoryStore(on)
     const registered = await startIn($, on, 'Español')
-    expect(registered).toEqual(['operator', 'operador'])
+    expect(registered).toEqual(['operador'])
     const run = (args: string) => $.command.run({ command: 'operador', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } })
     expect(textOf(await run('language en'))).toBe('The Operator now speaks English.')
     expect(store.get('ajustes')).toMatchObject({ language: 'en' })
