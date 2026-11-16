@@ -368,8 +368,8 @@ function tick($: EngineInterface): void {
   }
 }
 
-// La melodía de Clawd suena cada vez que termina: va más baja que el resto.
-const GAIN: Partial<Record<SoundName, number>> = { maestro: 0.7 }
+// Todos salen ya suaves del generador (tools/sonidos.py); aquí se puede bajar alguno más.
+const GAIN: Partial<Record<SoundName, number>> = {}
 
 function play($: EngineInterface, name: SoundName): void {
   void $.audio.play({ asset: `sounds/${name}.wav` }, { gain: GAIN[name] ?? 1 }).catch(() => undefined)
@@ -1297,8 +1297,8 @@ export const register: Register = on => {
       })
       return {
         text: tr(
-          'Sonando en orden: Arquitecto (el teléfono), Neo, Oráculo, Agente, Centinela y la estática de cuando algo falla.',
-          'Playing in order: Architect (the phone), Neo, Oracle, Agent, Sentinel and the static for when something fails.',
+          'Sonando en orden: Arquitecto (el teléfono), Neo (la línea conecta), Oráculo y Agente (tonos de marcado), Centinela (el auricular) y el tono de cuando algo falla.',
+          'Playing in order: Architect (the phone), Neo (the line connects), Oracle and Agent (dial tones), Sentinel (the handset) and the tone for when something fails.',
         ),
       }
     }

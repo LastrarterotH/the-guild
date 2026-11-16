@@ -120,5 +120,5 @@ El panel funciona en cualquier sistema. Lo que toca Terminal (ir a la pestaña d
 - Retratos: `python3 tools/retratos.py <imágenes>` los recorta y escribe en `art/` las variantes en reposo y caído.
 - Pruebas: `claude plugin test .`
 - Validación: `claude plugin validate .`
-- Sonidos: `node tools/sonidos.mjs` los regenera en `sounds/`.
+- Sonidos: `python3 tools/sonidos.py` los regenera en `sounds/`.
 - Idiomas: los comentarios del código van en español, y todo texto visible pasa por `tr(es, en)` en `hooks/i18n.ts`.

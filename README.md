@@ -120,5 +120,5 @@ The panel works on any system. What touches Terminal (going to a session's tab, 
 - Portraits: `python3 tools/retratos.py <images>` crops them and writes the resting and fallen variants into `art/`.
 - Tests: `claude plugin test .`
 - Validation: `claude plugin validate .`
-- Sounds: `node tools/sonidos.mjs` regenerates them in `sounds/`.
+- Sounds: `python3 tools/sonidos.py` regenerates them in `sounds/`.
 - Languages: code comments are in Spanish, and every visible text goes through `tr(es, en)` in `hooks/i18n.ts`.
