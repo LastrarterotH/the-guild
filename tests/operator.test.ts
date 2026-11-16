@@ -1368,7 +1368,7 @@ test('la lluvia de la Matrix en celdas mide lo pedido y cambia con el cuadro', (
 
 test('la Red muestra con quién conversa una sesión', () => {
   const now = 1_000_000
-  const e = { key: 'a', label: 'Recetario', state: 'working', since: now, running: 0, life: 50, at: now, talking: [{ to: 'Faro', at: now - 60_000 }, { to: 'Huerto', at: now - 11 * 60_000 }] } as GremioRealmEntry
+  const e = { key: 'a', label: 'Recetario', state: 'working', since: now, running: 0, life: 50, at: now, talking: [{ to: 'Faro', at: now - 60_000 }, { to: 'Huerto', at: now - 61 * 60_000 }] } as GremioRealmEntry
   expect(talkingTo(e, now)).toEqual(['Faro'])
   expect(realmSummary(e, now)).toContain('💬→Faro')
   expect(realmRow(e, now, false)).toContain('💬→Faro')
@@ -1574,6 +1574,10 @@ test('los mensajes entre sesiones: cuenta, asunto y dirección', () => {
   expect(matches('recetario', { key: 'b', label: 'Recetario' })).toBe(true)
   expect(matches('3f2a9c1d', { key: '3f2a9c1d-aaaa', label: 'x' })).toBe(true)
   expect(matches('otra', { key: 'b', label: 'x', ship: 'Logos' })).toBe(false)
+  // Entre sesiones de una misma máquina la dirección es el proceso de la otra.
+  expect(matches('uds:/tmp/cc-socks/98825.sock', { key: 'b', label: 'x', pids: [98825, 400] })).toBe(true)
+  expect(matches('uds:/tmp/cc-socks/98825.sock', { key: 'b', label: 'x', pids: [11027] })).toBe(false)
+  expect(matches('uds:/tmp/cc-socks/98825.sock', { key: 'b', label: 'x' })).toBe(false)
   const a = ship('a', { ship: 'Osiris', talking: talks })
   const b = ship('b', { ship: 'Logos', talking: [{ to: 'osiris', at: T0 + 2000, count: 1, subject: 'listo' }] })
   const c = ship('c', { ship: 'Ícaro' })

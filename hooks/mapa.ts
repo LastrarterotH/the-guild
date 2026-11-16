@@ -65,13 +65,22 @@ export function addTalk(list: readonly GremioTalk[], to: string, subject: string
 
 // ── Enlaces, choques y resumen ──────────────────────────────────────────────
 
+/** El número de proceso de una dirección entre sesiones ("uds:/tmp/cc-socks/98825.sock"), si lo es. */
+export function socketPid(to: string): number | null {
+  const m = /cc-socks\/(\d+)\.sock/.exec(to)
+  return m ? Number(m[1]) : null
+}
+
 /**
- * Si el `to` de un SendMessage nombra a esta sesión: su id (o el comienzo de
+ * Si el `to` de un SendMessage nombra a esta sesión: la dirección de su proceso
+ * (así se escriben las sesiones de una misma máquina), su id (o el comienzo de
  * su id, de 8 caracteres o más), su nombre o su nave, sin importar mayúsculas.
  */
-export function matches(to: string, e: Pick<Entry, 'key' | 'label' | 'ship'>): boolean {
+export function matches(to: string, e: Pick<Entry, 'key' | 'label' | 'ship' | 'pids'>): boolean {
   const t = to.trim().toLowerCase()
   if (!t) return false
+  const pid = socketPid(t)
+  if (pid !== null) return (e.pids ?? []).includes(pid)
   const names = [e.key, e.label, nameOf(e)].map(n => (n ?? '').toLowerCase())
   return names.includes(t) || (t.length >= 8 && e.key.toLowerCase().startsWith(t))
 }

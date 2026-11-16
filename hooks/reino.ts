@@ -163,11 +163,13 @@ export function realmRow(e: GremioRealmEntry, now: number, isOwn: boolean): stri
 
 /** Con quién conversa hace poco (le escribió por SendMessage), si alguien. */
 export function talkingTo(e: GremioRealmEntry, now: number): string[] {
-  return [...new Set((e.talking ?? []).filter(t => now - t.at < TALK_MS).map(t => t.to))]
+  // Una dirección de proceso ("uds:/tmp/cc-socks/123.sock") no le dice nada a nadie: el mapa le pone la nave.
+  const shown = (to: string) => (/cc-socks\//.test(to) ? tr('otra nave', 'another ship') : to)
+  return [...new Set((e.talking ?? []).filter(t => now - t.at < TALK_MS).map(t => shown(t.to)))]
 }
 
 /** Una conversación entre sesiones cuenta mientras el último mensaje tenga menos de esto. */
-export const TALK_MS = 10 * 60_000
+export const TALK_MS = 60 * 60_000
 
 /** Lo que se ve al tocar una fila: qué te pide (o lo último que pasó), con quién conversa y su carpeta. */
 export function realmDetail(e: GremioRealmEntry, home: string | null, now = Date.now()): string[] {

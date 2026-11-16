@@ -194,6 +194,8 @@ export type GremioRealmEntry = {
   folder?: string | null
   /** Sus terminales posibles (ttys004…), para ir a su pestaña. */
   ttys?: string[]
+  /** Su proceso y los que lo contienen: otra sesión le escribe a «uds:/tmp/cc-socks/<pid>.sock». */
+  pids?: number[]
   /** Lo último que sonó en esa sesión y quién fue: «🔔 Clawd terminó», «💰 Pícaro 2 volvió…». */
   bell?: { at: number; icon: string; text: string } | null
   /** La sesión se cerró: ya no se muestra, pero su gasto cuenta hasta que pase la ventana. */

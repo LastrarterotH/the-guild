@@ -213,6 +213,9 @@ let sessionKey: string | null = null
 let sessionFolder: string | null = null
 let sessionHome: string | null = null
 let sessionTtys: string[] = []
+// El proceso de esta sesión y sus padres: así la reconocen los mensajes de otras sesiones.
+let sessionPids: number[] = []
+const PID_SCRIPT = 'p=$PPID; i=0; while [ "$p" -gt 1 ] && [ $i -lt 4 ]; do echo $p; p=$(ps -o ppid= -p $p | tr -d " "); i=$((i+1)); done'
 // El archivo de la conversación (para leer su título) y lo último que sonó aquí.
 let transcriptPath: string | null = null
 let lastBell: { at: number; icon: string; text: string } | null = null
@@ -485,6 +488,7 @@ async function ownEntry($: EngineInterface): Promise<GremioRealmEntry | null> {
     last: events.at(-1)?.text ?? null,
     folder: sessionFolder,
     ttys: sessionTtys,
+    pids: sessionPids.length ? sessionPids : undefined,
     bell: lastBell,
     talking: talking.filter(t => now - t.at < TALK_MS),
     doing: dm.isBusy && !isIdle(dm.doing) ? cut(dm.doing, 48) : null,
@@ -1188,6 +1192,10 @@ export const register: Register = on => {
       sessionTtys = await $.process
         .run(['/bin/sh', '-c', TTY_SCRIPT], { timeoutMs: 3000 })
         .then(r => cleanTtys(r.stdout))
+        .catch(() => [])
+      sessionPids = await $.process
+        .run(['/bin/sh', '-c', PID_SCRIPT], { timeoutMs: 3000 })
+        .then(r => r.stdout.split('\n').map(l => Number(l.trim())).filter(n => Number.isInteger(n) && n > 1))
         .catch(() => [])
       // Su nave de Zion: la que le toca por su id, salvo que otra sesión viva ya la lleve.
       if (!(await read($, ship))) {
